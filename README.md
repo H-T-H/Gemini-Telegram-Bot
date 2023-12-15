@@ -1,7 +1,7 @@
 # Gemini_Telegram_Bot
 使用Gemini API的Telegram Bot
 # 如何安装
-## Linux环境下
+## (一)Linux环境下
 1. 安装依赖
 ```
 pip install -r requirements.txt
@@ -12,7 +12,7 @@ pip install -r requirements.txt
 ```
 python main.py ${Telegram Bot API} ${Gemini API keys}
 ```
-## 使用docker部署
+## (二)使用docker部署
 ```
 docker run -d -e TELEGRAM_BOT_API_KEY={更换为你的Telegram Bot API} -e GEMINI_API_KEYS={更换为你的Gemini API keys} qwqhthqwq/gemini_telegram_bot:latest
 ```
