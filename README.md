@@ -1,5 +1,5 @@
 # Gemini_Telegram_Bot
-A Telegram Bot using Gemini API
+A Telegram Bot using Gemini API  [中文文档](https://github.com/H-T-H/Gemini_Telegram_Bot/blob/main/README_zh.md)
 # How to Install
 ## (1) Under Linux Environment
 1. Install dependencies
