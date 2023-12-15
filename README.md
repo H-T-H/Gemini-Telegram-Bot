@@ -9,9 +9,12 @@ pip install -r requirements.txt
 3. 在[Google AI Studio](https://makersuite.google.com/app/apikey)处获取Gemini API keys
 4. 运行
 ```
-python tg.py ${Telegram Bot API} ${Gemini API keys}
+python main.py ${Telegram Bot API} ${Gemini API keys}
 
 ```
 #如何使用
 直接向机器人发送/Gemini {你的内容}
 也可以将机器人添加至群组内使用
+
+#参考内容
+[https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)
