@@ -12,7 +12,7 @@ pip install -r requirements.txt
 ```
 python main.py ${Telegram Bot API} ${Gemini API keys}
 ```
-## (二)Deploy using docker
+## (2)Deploy using docker
 ```
 docker run -d -e TELEGRAM_BOT_API_KEY={replace with your Telegram Bot API} -e GEMINI_API_KEYS={replace with your Gemini API keys} qwqhthqwq/gemini_telegram_bot:latest
 ```
