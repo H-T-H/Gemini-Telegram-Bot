@@ -29,6 +29,7 @@ docker run -d -e TELEGRAM_BOT_API_KEY={replace with your Telegram Bot API} -e GE
 
 ![1](assets/1.png)
 ![2](assets/2.png)
+
 2. If you are having a private chat with the bot, you can directly send what you want.
 
 ![3](assets/3.png)
