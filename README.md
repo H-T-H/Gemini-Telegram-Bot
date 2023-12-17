@@ -25,8 +25,14 @@ docker run -d -e TELEGRAM_BOT_API_KEY={replace with your Telegram Bot API} -e GE
 ```
 
 # How to Use
-1. Send /gemini {your content} to the bot (images can be included).
-2. The bot can also be added to a group.
+1. If you want to communicate with the bot in a group, your chat must start with '/gemini'.
+
+![1](assets/1.png)
+![2](assets/2.png)
+2. If you are having a private chat with the bot, you can directly send what you want.
+
+![3](assets/3.png)
+![4](assets/4.png)
 
 # Reference
 [https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)
