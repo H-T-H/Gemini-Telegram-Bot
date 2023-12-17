@@ -17,9 +17,8 @@ python main.py ${Telegram Bot API} ${Gemini API keys}
 
 # 如何使用
 
-1. 直接向机器人发送任意内容或图片均可
+1. 发送/gemini {你要说的内容}
 2. 也可以将机器人添加至群组内使用
-3. `/clear` 清除会话上下文
 
 # 参考内容
 
