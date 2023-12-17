@@ -13,10 +13,17 @@ pip install -r requirements.txt
 python main.py ${Telegram Bot API} ${Gemini API keys}
 ```
 ## (2)Deploy Using Docker
+# On x86
 Run the following command:
 ```
 docker run -d -e TELEGRAM_BOT_API_KEY={replace with your Telegram Bot API} -e GEMINI_API_KEYS={replace with your Gemini API keys} qwqhthqwq/gemini_telegram_bot:latest
 ```
+# On arm
+Run the following command:
+```
+docker run -d -e TELEGRAM_BOT_API_KEY={replace with your Telegram Bot API} -e GEMINI_API_KEYS={replace with your Gemini API keys} qwqhthqwq/gemini_telegram_bot_arm:latest
+```
+
 # How to Use
 1. Send /gemini {your content} to the bot (images can be included).
 2. The bot can also be added to a group.
