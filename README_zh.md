@@ -25,8 +25,15 @@ docker run -d -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEY
 ```
 
 # 使用方法
-1. 向机器人发送 /gemini {您的内容}（可以带图片）。
-2. 也可以将机器人添加到群组中
+1. 如果你想在群组里召唤机器人，你发送的信息必须以"/gemini开头"
+
+![1](assets/1.png)
+![1](assets/2.png)
+
+2. 如果你想跟机器人私聊，可以直接对话
+
+![3](assets/3.png)
+![4](assets/4.png)
 
 # 参考信息
 [https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)
