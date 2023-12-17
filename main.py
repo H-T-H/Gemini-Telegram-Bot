@@ -1,16 +1,23 @@
 import argparse
-import subprocess
-import traceback
-from pathlib import Path
+import asyncio
+import logging
+from contextvars import ContextVar
+from io import BytesIO
 
-import numpy as np
-import PIL
-from PIL import Image
-from telebot import TeleBot  # type: ignore
-from telebot.types import BotCommand, Message  # type: ignore
 import google.generativeai as genai
-
-
+import telegram
+from google.generativeai.types import BrokenResponseError
+from telegram import BotCommand, Update
+from telegram.constants import ParseMode
+from telegram.ext import (
+    AIORateLimiter,
+    Application,
+    ApplicationBuilder,
+    CallbackContext,
+    CommandHandler,
+    MessageHandler,
+    filters,
+)
 
 generation_config = {
     "temperature": 0.9,
@@ -19,6 +26,9 @@ generation_config = {
     "max_output_tokens": 2048,
 }
 
+logger = logging.getLogger("gemini-bot")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)
 safety_settings = [
     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
     {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
@@ -31,6 +41,7 @@ safety_settings = [
         "threshold": "BLOCK_MEDIUM_AND_ABOVE",
     },
 ]
+placehold_message = ContextVar("placehold_message")
 
 
 def make_new_gemini_convo():
@@ -42,86 +53,163 @@ def make_new_gemini_convo():
     convo = model.start_chat()
     return convo
 
-def main():
-    # Init args
-    parser = argparse.ArgumentParser()
-    parser.add_argument("tg_token", help="telegram token")
-    parser.add_argument("GOOGLE_GEMINI_KEY", help="Google Gemini API key")
-    options = parser.parse_args()
-    print("Arg parse done.")
-    gemini_player_dict = {}
 
-    genai.configure(api_key=options.GOOGLE_GEMINI_KEY)
-
-    # Init bot
-    bot = TeleBot(options.tg_token)
-    bot.set_my_commands(
+async def post_init(application: Application):
+    await application.bot.set_my_commands(
         [
-            BotCommand("gemini", "Gemini : /gemini <你的问题>"),
+            BotCommand("clear", "Clear conversation history"),
         ]
     )
-    print("Bot init done.")
 
-    @bot.message_handler(commands=["gemini"])
-    def gemini_handler(message: Message):
-        m = message.text.strip().split(maxsplit=1)[1].strip()
-        player = None
-        # restart will lose all TODO
-        if str(message.from_user.id) not in gemini_player_dict:
-            player = make_new_gemini_convo()
-            gemini_player_dict[str(message.from_user.id)] = player
-        else:
-            player = gemini_player_dict[str(message.from_user.id)]
-        if len(player.history) > 10:
-            player.history = player.history[2:]
-        try:
-            player.send_message(m)
+
+async def is_bot_mentioned(update: Update, context: CallbackContext):
+    try:
+        message = update.message
+
+        if message.chat.type == "private":
+            return True
+
+        if message.text is not None and ("@" + context.bot.username) in message.text:
+            return True
+
+        if message.reply_to_message is not None:
+            if message.reply_to_message.from_user.id == context.bot.id:
+                return True
+    except:
+        return True
+    else:
+        return False
+
+
+async def edited_message_handle(update: Update, context: CallbackContext):
+    if update.edited_message.chat.type == "private":
+        text = "🥲 Unfortunately, message <b>editing</b> is not supported"
+        await update.edited_message.reply_text(text, parse_mode=ParseMode.HTML)
+
+
+async def get_placehold_message(update: Update, text="..."):
+    if not placehold_message.get(None):
+        placehold_message.set(await update.message.reply_text(text))
+        await update.message.chat.send_action(action="typing")
+    return placehold_message.get()
+
+
+async def stream_msg(update: Update, context: CallbackContext, response):
+    message = await get_placehold_message(update)
+    try:
+        answer = ""
+        async for chunk in response:
+            answer += chunk.text
+            answer = answer[:4096]  # telegram message length limit
             try:
-                bot.reply_to(
-                    message,
-                    player.last.text,
-                    parse_mode="MarkdownV2",
+                await context.bot.edit_message_text(
+                    answer,
+                    chat_id=message.chat_id,
+                    message_id=message.message_id,
+                    parse_mode=ParseMode.MARKDOWN,
                 )
-            except:
-                bot.reply_to(message, player.last.text)
+            except telegram.error.BadRequest as e:
+                if not str(e).startswith("Message is not modified"):
+                    await context.bot.edit_message_text(answer, chat_id=message.chat_id, message_id=message.message_id)
+            await asyncio.sleep(0.1)  # wait a bit to avoid flooding
+    except asyncio.CancelledError:
+        raise
 
-        except Exception as e:
-            traceback.print_exc()
-            bot.reply_to(message, "Something wrong please check the log")
+    except Exception as e:
+        error_text = f"🥲 Something went wrong during completion. Reason: {e}"
+        logger.error(error_text)
+        await context.bot.edit_message_text(error_text, chat_id=message.chat_id, message_id=message.message_id)
 
-    @bot.message_handler(content_types=["photo"])
-    def gemini_photo_handler(message: Message) -> None:
-        s = message.caption
-        if not s or not (s.startswith("/gemini")):
-            return
-        try:
-            prompt = s.strip().split(maxsplit=1)[1].strip() if len(s.strip().split(maxsplit=1)) > 1 else ""
+    await asyncio.sleep(0.1)
 
-            max_size_photo = max(message.photo, key=lambda p: p.file_size)
-            file_path = bot.get_file(max_size_photo.file_id).file_path
-            downloaded_file = bot.download_file(file_path)
-            with open("gemini_temp.jpg", "wb") as temp_file:
-                temp_file.write(downloaded_file)
-        except Exception as e:
-            traceback.print_exc()
-            bot.reply_to(message, "Something is wrong reading your photo or prompt")
-        model = genai.GenerativeModel("gemini-pro-vision")
-        image_path = Path("gemini_temp.jpg")
-        image_data = image_path.read_bytes()
-        contents = {
-            "parts": [{"mime_type": "image/jpeg", "data": image_data}, {"text": prompt}]
-        }
-        try:
-            response = model.generate_content(contents=contents)
-            bot.reply_to(message, response.text)
-        except Exception as e:
-            traceback.print_exc()
-            bot.reply_to(message, "Something wrong please check the log")
 
-    # Start bot
-    print("Starting tg collections bot.")
-    bot.infinity_polling()
+async def message_handler(update: Update, context: CallbackContext, message=None):
+    # check if bot was mentioned (for group chats)
+    if not await is_bot_mentioned(update, context):
+        return
+
+    # check if message is edited
+    if update.edited_message is not None:
+        await edited_message_handle(update, context)
+        return
+
+    text = message or update.message.text
+
+    # remove bot mention (in group chats)
+    if update.message.chat.type != "private":
+        text = text.replace("@" + context.bot.username, "").strip()
+
+    if text is None or len(text) == 0:
+        await update.message.reply_text(
+            "🥲 You sent <b>empty message</b>. Please, try again!", parse_mode=ParseMode.HTML
+        )
+        return
+    player = gemini_player_dict.setdefault(update.message.from_user.id, make_new_gemini_convo())
+    try:
+        response = await player.send_message_async(text, stream=True)
+    except BrokenResponseError:
+        player.rewind()
+        placehold_message.set(await get_placehold_message(update, "🥲 Something went wrong, I'll try again..."))
+        return await message_handler(update, context, message)
+    await stream_msg(update, context, response)
+
+
+async def photo_handler(update: Update, context: CallbackContext):
+    placehold_message.set(await get_placehold_message(update, "🤖 Processing your photo..."))
+
+    max_size_photo = max(update.message.photo, key=lambda p: p.file_size)
+    try:
+        file = await max_size_photo.get_file()
+        with BytesIO() as bio:
+            await file.download_to_memory(bio)
+            img = bio.getvalue()
+    except Exception as e:
+        await update.message.reply_text(f"🥲 Something is wrong while reading your photo: {e}")
+        return
+    model = genai.GenerativeModel("gemini-pro-vision")
+    contents = {
+        "parts": [
+            {
+                "mime_type": "image/jpeg",
+                "data": img,
+            },
+            {
+                "text": update.message.caption or "Please describe this image",
+            },
+        ],
+    }
+    response = await model.generate_content_async(contents, stream=True)
+    await stream_msg(update, context, response)
+
+
+async def clear_handler(update: Update, context: CallbackContext):
+    gemini_player_dict.pop(update.message.from_user.id, None)
+    await update.message.reply_text("🤖 Conversation history cleared")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("tg_token", help="telegram token")
+    parser.add_argument("gemini_key", help="Google Gemini API key")
+    options = parser.parse_args()
+    genai.configure(api_key=options.gemini_key)
+
+    app = (
+        ApplicationBuilder()
+        .token(options.tg_token)
+        .concurrent_updates(True)
+        .rate_limiter(AIORateLimiter(max_retries=5))
+        .http_version("1.1")
+        .get_updates_http_version("1.1")
+        .post_init(post_init)
+        .build()
+    )
+    app.add_handler(CommandHandler("clear", clear_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    app.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, photo_handler))
+    app.run_polling()
 
 
 if __name__ == "__main__":
+    gemini_player_dict = {}
     main()

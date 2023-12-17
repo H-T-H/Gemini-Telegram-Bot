@@ -1,7 +1,9 @@
 # Gemini_Telegram_Bot
+
 A Telegram Bot using Gemini API  [中文文档](https://github.com/H-T-H/Gemini_Telegram_Bot/blob/main/README_zh.md)
+
 # How to Install
-## (1) On Linux
+
 1. Install dependencies
 ```
 pip install -r requirements.txt
@@ -12,14 +14,11 @@ pip install -r requirements.txt
 ```
 python main.py ${Telegram Bot API} ${Gemini API keys}
 ```
-## (2)Deploy Using Docker
-Run the following command:
-```
-docker run -d -e TELEGRAM_BOT_API_KEY={replace with your Telegram Bot API} -e GEMINI_API_KEYS={replace with your Gemini API keys} qwqhthqwq/gemini_telegram_bot:latest
-```
+
 # How to Use
-1. Send /gemini {your content} to the bot (images can be included).
-2. The bot can also be added to a group.
+1. You can send any content or picture directly to the bot.
+2. You can also add the bot to a group and use it there.
+3. /clear Clears the conversation context.
 
 # Reference
 [https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)
