@@ -1,4 +1,2 @@
-pyTelegramBotAPI==4.14.0
-numpy
-Pillow
+python-telegram-bot[rate-limiter]
 google-generativeai
