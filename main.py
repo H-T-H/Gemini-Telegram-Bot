@@ -1,9 +1,12 @@
 import argparse
 import traceback
+import asyncio
+import google.generativeai as genai
+from telebot.async_telebot import AsyncTeleBot
 from pathlib import Path
 from telebot import TeleBot  # type: ignore
 from telebot.types import BotCommand, Message  # type: ignore
-import google.generativeai as genai
+
 
 generation_config = {
     "temperature": 0.9,
@@ -26,7 +29,7 @@ safety_settings = [
 ]
 
 
-def make_new_gemini_convo():
+async def make_new_gemini_convo():
     model = genai.GenerativeModel(
         model_name="gemini-pro",
         generation_config=generation_config,
@@ -35,7 +38,7 @@ def make_new_gemini_convo():
     convo = model.start_chat()
     return convo
 
-def main():
+async def main():
     # Init args
     parser = argparse.ArgumentParser()
     parser.add_argument("tg_token", help="telegram token")
@@ -47,50 +50,17 @@ def main():
     genai.configure(api_key=options.GOOGLE_GEMINI_KEY)
 
     # Init bot
-    bot = TeleBot(options.tg_token)
-    bot.set_my_commands(
-        [
-            BotCommand("gemini", "Gemini : /gemini <你的问题>"),
-        ]
-    )
+    bot = AsyncTeleBot(options.tg_token)
     print("Bot init done.")
-
-    @bot.message_handler(commands=["gemini"])
-    def gemini_handler(message: Message):
-        m = message.text.strip().split(maxsplit=1)[1].strip()
-        player = None
-        # restart will lose all TODO
-        if str(message.from_user.id) not in gemini_player_dict:
-            player = make_new_gemini_convo()
-            gemini_player_dict[str(message.from_user.id)] = player
-        else:
-            player = gemini_player_dict[str(message.from_user.id)]
-        if len(player.history) > 10:
-            player.history = player.history[2:]
-        try:
-            player.send_message(m)
-            try:
-                bot.reply_to(
-                    message,
-                    player.last.text,
-                    parse_mode="MarkdownV2",
-                )
-            except:
-                bot.reply_to(message, player.last.text)
-
-        except Exception as e:
-            traceback.print_exc()
-            bot.reply_to(message, "Something wrong please check the log")
-            
-
+    
     @bot.message_handler(func=lambda message: message.chat.type == "private", content_types=['text'])
-    def gemini_private_handler(message: Message):
+    async def gemini_private_handler(message: Message):
         m = message.text.strip()
         player = None
 
         # 检查玩家是否已经在gemini_player_dict中
         if str(message.from_user.id) not in gemini_player_dict:
-            player = make_new_gemini_convo()
+            player = await make_new_gemini_convo()
             gemini_player_dict[str(message.from_user.id)] = player
         else:
             player = gemini_player_dict[str(message.from_user.id)]
@@ -101,33 +71,52 @@ def main():
         try:
             player.send_message(m)
             try:
-                bot.reply_to(message, player.last.text, parse_mode="MarkdownV2")
+                await bot.reply_to(message, player.last.text, parse_mode="MarkdownV2")
             except:
-                bot.reply_to(message, player.last.text)
+                await bot.reply_to(message, player.last.text)
 
         except Exception as e:
             traceback.print_exc()
-            bot.reply_to(message, "Something wrong please check the log")
+            await bot.reply_to(message, "Something wrong please check the log")
+            
+    @bot.message_handler(commands=["gemini"])
+    async def gemini_handler(message: Message):
+        m = message.text.strip().split(maxsplit=1)[1].strip()
+        player = None
+        # restart will lose all TODO
+        if str(message.from_user.id) not in gemini_player_dict:
+            player = await make_new_gemini_convo()
+            gemini_player_dict[str(message.from_user.id)] = player
+        else:
+            player = gemini_player_dict[str(message.from_user.id)]
+        if len(player.history) > 10:
+            player.history = player.history[2:]
+        try:
+            player.send_message(m)
+            try:
+                await bot.reply_to( message , player.last.text , parse_mode="MarkdownV2",)
+            except:
+                await bot.reply_to(message, player.last.text)
 
-
-
+        except Exception as e:
+            traceback.print_exc()
+            await bot.reply_to(message, "Something wrong please check the log")
+            
     @bot.message_handler(content_types=["photo"])
-    def gemini_photo_handler(message: Message) -> None:
+    async def gemini_photo_handler(message: Message) -> None:
         if message.chat.type != "private":
             s = message.caption
             if not s or not (s.startswith("/gemini")):
                 return
             try:
                 prompt = s.strip().split(maxsplit=1)[1].strip() if len(s.strip().split(maxsplit=1)) > 1 else "no prompt"
-
-                max_size_photo = max(message.photo, key=lambda p: p.file_size)
-                file_path = bot.get_file(max_size_photo.file_id).file_path
-                downloaded_file = bot.download_file(file_path)
+                file_path = await bot.get_file(message.photo[-1].file_id)
+                downloaded_file = await bot.download_file(file_path.file_path)
                 with open("gemini_temp.jpg", "wb") as temp_file:
                     temp_file.write(downloaded_file)
             except Exception as e:
                 traceback.print_exc()
-                bot.reply_to(message, "Something is wrong reading your photo or prompt")
+                await bot.reply_to(message, "Something is wrong reading your photo or prompt")
             model = genai.GenerativeModel("gemini-pro-vision")
             image_path = Path("gemini_temp.jpg")
             image_data = image_path.read_bytes()
@@ -136,22 +125,21 @@ def main():
             }
             try:
                 response = model.generate_content(contents=contents)
-                bot.reply_to(message, response.text)
+                await bot.reply_to(message, response.text)
             except Exception as e:
                 traceback.print_exc()
-                bot.reply_to(message, "Something wrong please check the log")
+                await bot.reply_to(message, "Something wrong please check the log")
         else:
             s = message.caption if message.caption else "no prompt"
             try:
                 prompt = s.strip()
-                max_size_photo = max(message.photo, key=lambda p: p.file_size)
-                file_path = bot.get_file(max_size_photo.file_id).file_path
-                downloaded_file = bot.download_file(file_path)
+                file_path = await bot.get_file(message.photo[-1].file_id)
+                downloaded_file = await bot.download_file(file_path.file_path)
                 with open("gemini_temp.jpg", "wb") as temp_file:
                     temp_file.write(downloaded_file)
             except Exception as e:
                 traceback.print_exc()
-                bot.reply_to(message, "Something is wrong reading your photo or prompt")
+                await bot.reply_to(message, "Something is wrong reading your photo or prompt")
             model = genai.GenerativeModel("gemini-pro-vision")
             image_path = Path("gemini_temp.jpg")
             image_data = image_path.read_bytes()
@@ -160,14 +148,15 @@ def main():
             }
             try:
                 response = model.generate_content(contents=contents)
-                bot.reply_to(message, response.text)
+                await bot.reply_to(message, response.text)
             except Exception as e:
                 traceback.print_exc()
-                bot.reply_to(message, "Something wrong please check the log")
+                await bot.reply_to(message, "Something wrong please check the log")
+                
     # Start bot
     print("Starting tg collections bot.")
-    bot.infinity_polling()
+    await bot.polling()
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    asyncio.run(main())
