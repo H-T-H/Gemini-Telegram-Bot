@@ -1,10 +1,6 @@
 import argparse
-import subprocess
 import traceback
 from pathlib import Path
-import numpy as np
-import PIL
-from PIL import Image
 from telebot import TeleBot  # type: ignore
 from telebot.types import BotCommand, Message  # type: ignore
 import google.generativeai as genai
