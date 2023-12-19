@@ -31,3 +31,4 @@ docker run -d -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEY
 
 # 参考信息
 [https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)
+[https://github.com/yym68686/md2tgmd/blob/main/src/md2tgmd.py](https://github.com/yym68686/md2tgmd/blob/main/src/md2tgmd.py)
