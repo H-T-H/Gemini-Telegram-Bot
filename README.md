@@ -30,5 +30,5 @@ docker run -d -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEY
 3. 你可以使用'/clear'命令删除当前对话的历史记录
 
 # 参考信息
-[https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)
-[https://github.com/yym68686/md2tgmd/blob/main/src/md2tgmd.py](https://github.com/yym68686/md2tgmd/blob/main/src/md2tgmd.py)
+1. [https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)
+2. [https://github.com/yym68686/md2tgmd/blob/main/src/md2tgmd.py](https://github.com/yym68686/md2tgmd/blob/main/src/md2tgmd.py)
