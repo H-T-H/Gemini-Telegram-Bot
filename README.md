@@ -1,5 +1,5 @@
 # Gemini_Telegram_Bot
-一个使用 Gemini API 的 Telegram 机器人
+一个使用 Gemini API 的 Telegram 机器人[English ducument](https://github.com/H-T-H/Gemini_Telegram_Bot/blob/main/README_en.md)
 # 如何安装
 ## (1) Linux系统
 1. 安装依赖
@@ -25,15 +25,9 @@ docker run -d -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEY
 ```
 
 # 使用方法
-1. 如果你想在群组里召唤机器人，你发送的信息必须以"/gemini开头"
-
-![1](assets/1.png)
-![1](assets/2.png)
-
+1. 如果你想在群组里召唤机器人，你发送的信息必须以'/gemini'命令开头
 2. 如果你想跟机器人私聊，可以直接对话
-
-![3](assets/3.png)
-![4](assets/4.png)
+3. 你可以使用'/clear'命令删除当前对话的历史记录
 
 # 参考信息
 [https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)
