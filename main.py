@@ -171,7 +171,7 @@ async def main():
 
         except Exception as e:
             traceback.print_exc()
-            await bot.reply_to(message, "Something wrong please check the log")
+            await bot.reply_to(message, "Something wrong, possibly due to security, please try changing your prompt or contact admin")
 
     @bot.message_handler(commands=["clear"])
     async def gemini_handler(message: Message):
@@ -204,7 +204,7 @@ async def main():
 
         except Exception as e:
             traceback.print_exc()
-            await bot.reply_to(message, "Something wrong please check the log")
+            await bot.reply_to(message, "Something wrong, possibly due to security, please try changing your prompt or contact admin")
             
     @bot.message_handler(content_types=["photo"])
     async def gemini_photo_handler(message: Message) -> None:
@@ -232,7 +232,7 @@ async def main():
                 await bot.reply_to(message, response.text)
             except Exception as e:
                 traceback.print_exc()
-                await bot.reply_to(message, "Something wrong please check the log")
+                await bot.reply_to(message, "Something wrong, possibly due to security, please try changing your prompt or contact admin")
         else:
             s = message.caption if message.caption else "no prompt"
             try:
@@ -255,7 +255,7 @@ async def main():
                 await bot.reply_to(message, response.text)
             except Exception as e:
                 traceback.print_exc()
-                await bot.reply_to(message, "Something wrong please check the log")
+                await bot.reply_to(message, "Something wrong, possibly due to security, please try changing your prompt or contact admin")
                 
     # Start bot
     print("Starting Gemini_Telegram_Bot.")
