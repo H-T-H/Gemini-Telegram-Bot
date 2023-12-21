@@ -259,7 +259,7 @@ async def main():
                 
     # Start bot
     print("Starting Gemini_Telegram_Bot.")
-    await bot.polling()
+    await bot.polling(none_stop=True)
 
 
 if __name__ == '__main__':
