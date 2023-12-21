@@ -1,5 +1,7 @@
 # Gemini_Telegram_Bot
 A Telegram Bot using Gemini API
+
+[Click here to try the Demo](https://t.me/gemini_telegram_demo_bot)
 # How to Install
 ## (1) On Linux
 1. Install dependencies
