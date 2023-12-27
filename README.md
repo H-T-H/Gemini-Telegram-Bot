@@ -26,6 +26,11 @@ docker run -d -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEY
 docker run -d -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEYS={Gemini API 密钥} qwqhthqwq/gemini_telegram_bot_arm:latest
 ```
 
+## (3)使用 Zeabur 部署
+点击下方按钮一键部署
+
+[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/V2870T)
+
 # 使用方法
 1. 如果你想在群组里召唤机器人，你发送的信息必须以'/gemini'命令开头
 2. 如果你想跟机器人私聊，可以直接对话
