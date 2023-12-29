@@ -11,10 +11,10 @@ from telebot.types import BotCommand, Message
 
 
 generation_config = {
-    "temperature": 0.9,
+    "temperature": 0.1,
     "top_p": 1,
     "top_k": 1,
-    "max_output_tokens": 8192,
+    "max_output_tokens": 2048,
 }
 
 safety_settings = []
