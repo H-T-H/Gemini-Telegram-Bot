@@ -27,6 +27,11 @@ Run the following command:
 docker run -d -e TELEGRAM_BOT_API_KEY={replace with your Telegram Bot API} -e GEMINI_API_KEYS={replace with your Gemini API keys} qwqhthqwq/gemini_telegram_bot_arm:latest
 ```
 
+## (3)Deploy on Zeabur
+Click on the button below for a one-click deployment.
+
+[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/V2870T)
+
 # How to Use
 1. If you want to communicate with the bot in a group, your chat must start with '/gemini'.
 2. If you are having a private chat with the bot, you can directly send what you want.
