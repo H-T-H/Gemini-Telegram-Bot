@@ -33,7 +33,7 @@ docker build -t gemini_tg_bot .
 ```
 6. 运行镜像
 ```
-run -d -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEYS={Gemini API 密钥} gemini_tg_bot
+docker run -d -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEYS={Gemini API 密钥} gemini_tg_bot
 ```
 ### 如果你不想自己构建
 #### 1.在 x86 架构上
