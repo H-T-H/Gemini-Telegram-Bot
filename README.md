@@ -53,10 +53,13 @@ docker run -d -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEY
 [![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/V2870T)
 
 # 使用方法
-1. PM中直接发送你的问题
-2. 群组中使用/gemini命令
+1. 私聊中直接发送你的问题即可
+2. 群组中使用/gemini命令+你的问题
 3. 使用'/clear'命令可删除当前对话的历史记录
 
 # 参考信息
 1. [https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)
 2. [https://github.com/yym68686/md2tgmd/blob/main/src/md2tgmd.py](https://github.com/yym68686/md2tgmd/blob/main/src/md2tgmd.py)
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=H-T-H/Gemini-Telegram-Bot&type=Date)](https://star-history.com/#H-T-H/Gemini-Telegram-Bot&Date)
