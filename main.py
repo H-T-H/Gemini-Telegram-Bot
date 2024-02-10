@@ -5,9 +5,7 @@ import google.generativeai as genai
 import re
 import telebot
 from telebot.async_telebot import AsyncTeleBot
-from pathlib import Path
-from telebot import TeleBot
-from telebot.types import BotCommand, Message
+from telebot.types import  Message
 
 
 generation_config = {
@@ -18,6 +16,10 @@ generation_config = {
 }
 
 safety_settings = []
+
+error_info="⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !"
+before_generate_info="🤖Generating🤖"
+download_pic_notify="🤖Loading picture🤖"
 
 def find_all_index(str, pattern):
     index_list = [0]
@@ -51,14 +53,11 @@ def replace_all(text, pattern, function):
 def escapeshape(text):
     return "▎*" + text.split()[1] + "*"
 
-
 def escapeminus(text):
     return "\\" + text
 
-
 def escapebackquote(text):
     return r"\`\`"
-
 
 def escapeplus(text):
     return "\\" + text
@@ -139,9 +138,9 @@ async def main():
     await bot.delete_my_commands(scope=None, language_code=None)
     await bot.set_my_commands(
         commands=[
-            telebot.types.BotCommand("start", "开始"),
-            telebot.types.BotCommand("gemini", "在群组内使用机器人才需此命令"),
-            telebot.types.BotCommand("clear", "清除上下文")
+            telebot.types.BotCommand("start", "Start"),
+            telebot.types.BotCommand("gemini", "This command is only for chat groups!"),
+            telebot.types.BotCommand("clear", "Clear history")
         ],
     )
     print("Bot init done.")
@@ -150,23 +149,22 @@ async def main():
     @bot.message_handler(commands=["start"])
     async def gemini_handler(message: Message):
         try:
-            await bot.reply_to( message , escape("欢迎使用机器人,现在你可以向我提问.例如:`请写一个链表结构。`"), parse_mode="MarkdownV2")
+            await bot.reply_to( message , escape("Welcome, you can ask me questions now. \nFor example: `Who is john lennon?`"), parse_mode="MarkdownV2")
         except IndexError:
-            await bot.reply_to(message, "看起来出了一些问题,请尝试更改你的提示词或联系管理员")
+            await bot.reply_to(message, error_info)
 
     @bot.message_handler(commands=["gemini"])
     async def gemini_handler(message: Message):
 
         if message.chat.type == "private":
-            await bot.reply_to( message , "与机器人私聊无需此命令")
+            await bot.reply_to( message , "This command is only for chat groups !")
             return
         try:
             m = message.text.strip().split(maxsplit=1)[1].strip()
         except IndexError:
-            await bot.reply_to( message , escape("请在/gemini后接上你要说的话.例如:`/gemini 请写一个链表结构。`"), parse_mode="MarkdownV2")
+            await bot.reply_to( message , escape("Please add what you want to say after /gemini. \nFor example: `/gemini Who is john lennon?`"), parse_mode="MarkdownV2")
             return
         player = None
-        # restart will lose all TODO
         if str(message.from_user.id) not in gemini_player_dict:
             player = await make_new_gemini_convo()
             gemini_player_dict[str(message.from_user.id)] = player
@@ -175,24 +173,25 @@ async def main():
         if len(player.history) > 10:
             player.history = player.history[2:]
         try:
+            sent_message = await bot.reply_to(message, before_generate_info)
             player.send_message(m)
             try:
-                await bot.reply_to( message , escape(player.last.text) , parse_mode="MarkdownV2",)
+                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
             except:
-                await bot.reply_to(message, escape(player.last.text))
+                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id)
 
-        except Exception as e:
+        except Exception:
             traceback.print_exc()
-            await bot.reply_to(message, "看起来出了一些问题,请尝试更改你的提示词或联系管理员")
+            await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
 
     @bot.message_handler(commands=["clear"])
     async def gemini_handler(message: Message):
         # Check if the player is already in gemini_player_dict.
         if str(message.from_user.id) in gemini_player_dict:
             del gemini_player_dict[str(message.from_user.id)]
-            await bot.reply_to(message, "您的历史记录已清理")
+            await bot.reply_to(message, "Your history has been cleared")
         else:
-            await bot.reply_to(message, "您现在没有历史记录")
+            await bot.reply_to(message, "You have no history now")
     
     @bot.message_handler(func=lambda message: message.chat.type == "private", content_types=['text'])
     async def gemini_private_handler(message: Message):
@@ -208,16 +207,17 @@ async def main():
         if len(player.history) > 10:
             player.history = player.history[2:]
         try:
+            sent_message = await bot.reply_to(message, before_generate_info)
             player.send_message(m)
             try:
-                await bot.reply_to(message, escape(player.last.text), parse_mode="MarkdownV2")
+                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
             except:
-                await bot.reply_to(message, escape(player.last.text))
+                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id)
 
-        except Exception as e:
+        except Exception:
             traceback.print_exc()
-            await bot.reply_to(message, "看起来出了一些问题,请尝试更改你的提示词或联系管理员")
-            
+            await bot.reply_to(message, error_info)
+
     @bot.message_handler(content_types=["photo"])
     async def gemini_photo_handler(message: Message) -> None:
         if message.chat.type != "private":
@@ -225,46 +225,48 @@ async def main():
             if not s or not (s.startswith("/gemini")):
                 return
             try:
-                prompt = s.strip().split(maxsplit=1)[1].strip() if len(s.strip().split(maxsplit=1)) > 1 else "no prompt"
+                prompt = s.strip().split(maxsplit=1)[1].strip() if len(s.strip().split(maxsplit=1)) > 1 else ""
                 file_path = await bot.get_file(message.photo[-1].file_id)
+                sent_message = await bot.reply_to(message, download_pic_notify)
                 downloaded_file = await bot.download_file(file_path.file_path)
-            except Exception as e:
+            except Exception:
                 traceback.print_exc()
-                await bot.reply_to(message, "看起来出了一些问题,请尝试更改你的提示词或联系管理员")
+                await bot.reply_to(message, error_info)
             model = genai.GenerativeModel("gemini-pro-vision")
             contents = {
                 "parts": [{"mime_type": "image/jpeg", "data": downloaded_file}, {"text": prompt}]
             }
             try:
+                await bot.edit_message_text(before_generate_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
                 response = model.generate_content(contents=contents)
-                await bot.reply_to(message, response.text)
-            except Exception as e:
+                await bot.edit_message_text(response.text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            except Exception:
                 traceback.print_exc()
-                await bot.reply_to(message, "看起来出了一些问题,请尝试更改你的提示词或联系管理员")
+                await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
         else:
-            s = message.caption if message.caption else "no prompt"
+            s = message.caption if message.caption else ""
             try:
                 prompt = s.strip()
                 file_path = await bot.get_file(message.photo[-1].file_id)
+                sent_message = await bot.reply_to(message, download_pic_notify)
                 downloaded_file = await bot.download_file(file_path.file_path)
-            except Exception as e:
+            except Exception:
                 traceback.print_exc()
-                await bot.reply_to(message, "看起来出了一些问题,请尝试更改你的提示词或联系管理员")
+                await bot.reply_to(message, error_info)
             model = genai.GenerativeModel("gemini-pro-vision")
             contents = {
                 "parts": [{"mime_type": "image/jpeg", "data": downloaded_file}, {"text": prompt}]
             }
             try:
+                await bot.edit_message_text(before_generate_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
                 response = model.generate_content(contents=contents)
-                await bot.reply_to(message, response.text)
-            except Exception as e:
+                await bot.edit_message_text(response.text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            except Exception:
                 traceback.print_exc()
-                await bot.reply_to(message, "看起来出了一些问题,请尝试更改你的提示词或联系管理员")
-                
+                await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
     # Start bot
     print("Starting Gemini_Telegram_Bot.")
     await bot.polling(none_stop=True)
-
 
 if __name__ == '__main__':
     asyncio.run(main())
