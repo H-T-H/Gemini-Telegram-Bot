@@ -15,7 +15,23 @@ generation_config = {
     "max_output_tokens": 2048,
 }
 
-safety_settings = []
+safety_settings = [
+    {
+        "category": "HARM_CATEGORY_HARASSMENT",
+        "threshold": "BLOCK_NONE"
+    },
+    {   "category": "HARM_CATEGORY_HATE_SPEECH",
+        "threshold": "BLOCK_NONE"
+    },
+    {
+        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        "threshold": "BLOCK_NONE"
+    },
+    {
+        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+        "threshold": "BLOCK_NONE"
+    },
+]
 
 error_info="⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !"
 before_generate_info="🤖Generating🤖"
@@ -113,14 +129,37 @@ def escape(text, flag=0):
     text = re.sub(r"!", "\!", text)
     return text
 
+# Prevent "create_convo" function from blocking the event loop.
 async def make_new_gemini_convo():
-    model = genai.GenerativeModel(
-        model_name="gemini-pro",
-        generation_config=generation_config,
-        safety_settings=safety_settings,
-    )
-    convo = model.start_chat()
+    loop = asyncio.get_running_loop()
+
+    def create_convo():
+        model = genai.GenerativeModel(
+            model_name="gemini-pro",
+            generation_config=generation_config,
+            safety_settings=safety_settings,
+        )
+        convo = model.start_chat()
+        return convo
+
+    # Run the synchronous "create_convo" function in a thread pool
+    convo = await loop.run_in_executor(None, create_convo)
     return convo
+
+# Prevent "send_message" function from blocking the event loop.
+async def send_message(player, message):
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, player.send_message, message)
+    
+# Prevent "model.generate_content" function from blocking the event loop.
+async def async_generate_content(model, contents):
+    loop = asyncio.get_running_loop()
+
+    def generate():
+        return model.generate_content(contents=contents)
+
+    response = await loop.run_in_executor(None, generate)
+    return response
 
 async def main():
     # Init args
@@ -174,7 +213,7 @@ async def main():
             player.history = player.history[2:]
         try:
             sent_message = await bot.reply_to(message, before_generate_info)
-            player.send_message(m)
+            await send_message(player, m)
             try:
                 await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
             except:
@@ -208,7 +247,7 @@ async def main():
             player.history = player.history[2:]
         try:
             sent_message = await bot.reply_to(message, before_generate_info)
-            player.send_message(m)
+            await send_message(player, m)
             try:
                 await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
             except:
@@ -238,7 +277,7 @@ async def main():
             }
             try:
                 await bot.edit_message_text(before_generate_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-                response = model.generate_content(contents=contents)
+                response = await async_generate_content(model, contents)
                 await bot.edit_message_text(response.text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
             except Exception:
                 traceback.print_exc()
@@ -259,7 +298,7 @@ async def main():
             }
             try:
                 await bot.edit_message_text(before_generate_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-                response = model.generate_content(contents=contents)
+                response = await async_generate_content(model, contents)
                 await bot.edit_message_text(response.text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
             except Exception:
                 traceback.print_exc()
