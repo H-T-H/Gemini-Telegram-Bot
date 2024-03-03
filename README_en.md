@@ -41,6 +41,12 @@ Click on the button below for a one-click deployment.
 
 [![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/V2870T)
 
+## (4)Deploy on Railway
+Click on the button below for a one-click deployment.
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/HIsbMv?referralCode=4LyW6R)
+
+
 # How to Use
 1. If you want to communicate with the bot in a group, your chat must start with '/gemini'.
 2. If you are having a private chat with the bot, you can directly send what you want.
