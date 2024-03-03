@@ -41,6 +41,12 @@ docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} 
 
 [![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/V2870T)
 
+## (4)使用 Railway 部署
+点击下方按钮一键部署
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/HIsbMv?referralCode=4LyW6R)
+
+
 # 使用方法
 1. 私聊中直接发送你的问题即可
 2. 群组中使用/gemini命令+你的问题
