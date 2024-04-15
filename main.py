@@ -146,6 +146,22 @@ async def make_new_gemini_convo():
     convo = await loop.run_in_executor(None, create_convo)
     return convo
 
+async def make_new_gemini_pro_convo():
+    loop = asyncio.get_running_loop()
+
+    def create_convo():
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-pro-latest",
+            generation_config=generation_config,
+            safety_settings=safety_settings,
+        )
+        convo = model.start_chat()
+        return convo
+
+    # Run the synchronous "create_convo" function in a thread pool
+    convo = await loop.run_in_executor(None, create_convo)
+    return convo
+
 # Prevent "send_message" function from blocking the event loop.
 async def send_message(player, message):
     loop = asyncio.get_running_loop()
@@ -169,6 +185,7 @@ async def main():
     options = parser.parse_args()
     print("Arg parse done.")
     gemini_player_dict = {}
+    gemini_pro_player_dict = {}
 
     genai.configure(api_key=options.GOOGLE_GEMINI_KEY)
 
@@ -179,7 +196,9 @@ async def main():
         commands=[
             telebot.types.BotCommand("start", "Start"),
             telebot.types.BotCommand("gemini", "This command is only for chat groups!"),
-            telebot.types.BotCommand("clear", "Clear history")
+            telebot.types.BotCommand("gemini_pro", "using model:gemini-pro-1.5"),
+            telebot.types.BotCommand("clear", "Clear history"),
+            telebot.types.BotCommand("clear_gemini_pro", "Clear gemini-pro-1.5's history"),
         ],
     )
     print("Bot init done.")
@@ -223,6 +242,33 @@ async def main():
             traceback.print_exc()
             await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
 
+    @bot.message_handler(commands=["gemini_pro"])
+    async def gemini_handler(message: Message):
+        try:
+            m = message.text.strip().split(maxsplit=1)[1].strip()
+        except IndexError:
+            await bot.reply_to( message , escape("Please add what you want to say after /gemini_pro. \nFor example: `/gemini_pro Who is john lennon?`"), parse_mode="MarkdownV2")
+            return
+        player = None
+        if str(message.from_user.id) not in gemini_pro_player_dict:
+            player = await make_new_gemini_pro_convo()
+            gemini_pro_player_dict[str(message.from_user.id)] = player
+        else:
+            player = gemini_pro_player_dict[str(message.from_user.id)]
+        if len(player.history) > 10:
+            player.history = player.history[2:]
+        try:
+            sent_message = await bot.reply_to(message, before_generate_info)
+            await send_message(player, m)
+            try:
+                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
+            except:
+                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+
+        except Exception:
+            traceback.print_exc()
+            await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+
     @bot.message_handler(commands=["clear"])
     async def gemini_handler(message: Message):
         # Check if the player is already in gemini_player_dict.
@@ -231,6 +277,16 @@ async def main():
             await bot.reply_to(message, "Your history has been cleared")
         else:
             await bot.reply_to(message, "You have no history now")
+
+    @bot.message_handler(commands=["clear_gemini_pro"])
+    async def gemini_handler(message: Message):
+        # Check if the player is already in gemini_player_dict.
+        if str(message.from_user.id) in gemini_pro_player_dict:
+            del gemini_pro_player_dict[str(message.from_user.id)]
+            await bot.reply_to(message, "Your gemini-pro:1.5 history has been cleared")
+        else:
+            await bot.reply_to(message, "You have no gemini-pro:1.5 history now")
+
     
     @bot.message_handler(func=lambda message: message.chat.type == "private", content_types=['text'])
     async def gemini_private_handler(message: Message):
