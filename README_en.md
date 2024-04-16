@@ -33,24 +33,36 @@ docker build -t gemini_tg_bot .
 ```
 6. run
 ```
-docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEYS={Gemini API 密钥} gemini_tg_bot
+docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram Bot API} -e GEMINI_API_KEYS={Gemini API Key} gemini_tg_bot
 ```
 
-## (3)Deploy on Zeabur
-Click on the button below for a one-click deployment.
-
-[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/V2870T)
-
-## (4)Deploy on Railway
+## (3)Deploy on Railway
 Click on the button below for a one-click deployment.
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/HIsbMv?referralCode=4LyW6R)
 
+## (4)Deploy on Zeabur
+Click on the button below for a one-click deployment.
+
+[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/V2870T)
+
 
 # How to Use
-1. If you want to communicate with the bot in a group, your chat must start with '/gemini'.
+1. If you want to communicate with the bot in a group, your chat must start with **/gemini**.
+```
+/gemini Who is John Lennon?
+```
 2. If you are having a private chat with the bot, you can directly send what you want.
-3. You can use the '/clear' command to delete the current conversation history.
+```
+Who is John Lennon?
+```
+3. You can use the **/clear** command to delete the current conversation history.
+
+4. To invoke the gemini-pro:1.5 model, you need to use the /gemini_pro.
+```
+/gemini_pro Who is John Lennon?
+```
+5. use the **/clear_gemini_pro** command to clear the history of the gemini-pro:1.5 model.
 
 
 # Reference

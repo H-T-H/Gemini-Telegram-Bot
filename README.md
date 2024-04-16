@@ -36,21 +36,23 @@ docker build -t gemini_tg_bot .
 docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEYS={Gemini API 密钥} gemini_tg_bot
 ```
 
-## (3)使用 Zeabur 部署
-点击下方按钮一键部署
-
-[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/V2870T)
-
-## (4)使用 Railway 部署
+## (3)使用 Railway 部署
 点击下方按钮一键部署
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/HIsbMv?referralCode=4LyW6R)
 
+## (4)使用 Zeabur 部署
+点击下方按钮一键部署
+
+[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/V2870T)
+
 
 # 使用方法
 1. 私聊中直接发送你的问题即可
-2. 群组中使用/gemini命令+你的问题
-3. 使用'/clear'命令可删除当前对话的历史记录
+2. 群组中使用 **/gemini命令**+你的问题
+3. 使用 **'/clear'** 命令可删除当前对话的历史记录
+4. 调用gemini-pro:1.5模型请使用 **/gemini_pro**
+5. 删除gemini-pro:1.5模型对话的历史记录请使用 **/clear_gemini_pro**
 
 # 参考信息
 1. [https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)
