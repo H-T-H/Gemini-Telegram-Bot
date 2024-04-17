@@ -48,9 +48,12 @@ Click on the button below for a one-click deployment.
 
 
 # How to Use
-1. If you want to communicate with the bot in a group, your chat must start with **/gemini**.
+1. If you want to communicate with the bot in a group, your chat must start with **/gemini** or **/gemini_pro**.
 ```
 /gemini Who is John Lennon?
+```
+```
+/gemini_pro Who is John Lennon?
 ```
 2. If you are having a private chat with the bot, you can directly send what you want.
 ```
@@ -58,11 +61,9 @@ Who is John Lennon?
 ```
 3. You can use the **/clear** command to delete the current conversation history.
 
-4. To invoke the gemini-pro:1.5 model, you need to use the /gemini_pro.
-```
-/gemini_pro Who is John Lennon?
-```
-5. use the **/clear_gemini_pro** command to clear the history of the gemini-pro:1.5 model.
+4. You can use the **/switch** command to switch the model.
+
+
 
 
 # Reference

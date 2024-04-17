@@ -7,9 +7,18 @@ import telebot
 from telebot.async_telebot import AsyncTeleBot
 from telebot.types import  Message
 
+gemini_player_dict = {}
+gemini_pro_player_dict = {}
+default_model_dict = {}
+
+error_info="⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !"
+before_generate_info="🤖Generating🤖"
+download_pic_notify="🤖Loading picture🤖"
+
+n = 10  #Number of historical records to keep
 
 generation_config = {
-    "temperature": 0.1,
+    "temperature": 1,
     "top_p": 1,
     "top_k": 1,
     "max_output_tokens": 2048,
@@ -33,10 +42,6 @@ safety_settings = [
     },
 ]
 
-error_info="⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !"
-before_generate_info="🤖Generating🤖"
-download_pic_notify="🤖Loading picture🤖"
-
 def find_all_index(str, pattern):
     index_list = [0]
     for match in re.finditer(pattern, str, re.MULTILINE):
@@ -46,7 +51,6 @@ def find_all_index(str, pattern):
             index_list += [start, end]
     index_list.append(len(str))
     return index_list
-
 
 def replace_all(text, pattern, function):
     poslist = [0]
@@ -177,6 +181,48 @@ async def async_generate_content(model, contents):
     response = await loop.run_in_executor(None, generate)
     return response
 
+async def gemini(bot,message,m):
+    player = None
+    if str(message.from_user.id) not in gemini_player_dict:
+        player = await make_new_gemini_convo()
+        gemini_player_dict[str(message.from_user.id)] = player
+    else:
+        player = gemini_player_dict[str(message.from_user.id)]
+    if len(player.history) > n:
+        player.history = player.history[2:]
+    try:
+        sent_message = await bot.reply_to(message, before_generate_info)
+        await send_message(player, m)
+        try:
+            await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
+        except:
+            await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+
+    except Exception:
+        traceback.print_exc()
+        await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+
+async def gemini_pro(bot,message,m):
+    player = None
+    if str(message.from_user.id) not in gemini_pro_player_dict:
+        player = await make_new_gemini_pro_convo()
+        gemini_pro_player_dict[str(message.from_user.id)] = player
+    else:
+        player = gemini_pro_player_dict[str(message.from_user.id)]
+    if len(player.history) > n:
+        player.history = player.history[2:]
+    try:
+        sent_message = await bot.reply_to(message, before_generate_info)
+        await send_message(player, m)
+        try:
+            await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
+        except:
+            await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+
+    except Exception:
+        traceback.print_exc()
+        await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+
 async def main():
     # Init args
     parser = argparse.ArgumentParser()
@@ -184,8 +230,6 @@ async def main():
     parser.add_argument("GOOGLE_GEMINI_KEY", help="Google Gemini API key")
     options = parser.parse_args()
     print("Arg parse done.")
-    gemini_player_dict = {}
-    gemini_pro_player_dict = {}
 
     genai.configure(api_key=options.GOOGLE_GEMINI_KEY)
 
@@ -195,10 +239,10 @@ async def main():
     await bot.set_my_commands(
         commands=[
             telebot.types.BotCommand("start", "Start"),
-            telebot.types.BotCommand("gemini", "This command is only for chat groups!"),
+            telebot.types.BotCommand("gemini", "using model:gemini-pro-1.0"),
             telebot.types.BotCommand("gemini_pro", "using model:gemini-pro-1.5"),
-            telebot.types.BotCommand("clear", "Clear history"),
-            telebot.types.BotCommand("clear_gemini_pro", "Clear gemini-pro-1.5's history"),
+            telebot.types.BotCommand("clear", "Clear all history"),
+            telebot.types.BotCommand("switch","switch default model")
         ],
     )
     print("Bot init done.")
@@ -213,34 +257,12 @@ async def main():
 
     @bot.message_handler(commands=["gemini"])
     async def gemini_handler(message: Message):
-
-        if message.chat.type == "private":
-            await bot.reply_to( message , "This command is only for chat groups !")
-            return
         try:
             m = message.text.strip().split(maxsplit=1)[1].strip()
         except IndexError:
             await bot.reply_to( message , escape("Please add what you want to say after /gemini. \nFor example: `/gemini Who is john lennon?`"), parse_mode="MarkdownV2")
             return
-        player = None
-        if str(message.from_user.id) not in gemini_player_dict:
-            player = await make_new_gemini_convo()
-            gemini_player_dict[str(message.from_user.id)] = player
-        else:
-            player = gemini_player_dict[str(message.from_user.id)]
-        if len(player.history) > 10:
-            player.history = player.history[2:]
-        try:
-            sent_message = await bot.reply_to(message, before_generate_info)
-            await send_message(player, m)
-            try:
-                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
-            except:
-                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-
-        except Exception:
-            traceback.print_exc()
-            await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+        await gemini(bot,message,m)
 
     @bot.message_handler(commands=["gemini_pro"])
     async def gemini_handler(message: Message):
@@ -249,69 +271,49 @@ async def main():
         except IndexError:
             await bot.reply_to( message , escape("Please add what you want to say after /gemini_pro. \nFor example: `/gemini_pro Who is john lennon?`"), parse_mode="MarkdownV2")
             return
-        player = None
-        if str(message.from_user.id) not in gemini_pro_player_dict:
-            player = await make_new_gemini_pro_convo()
-            gemini_pro_player_dict[str(message.from_user.id)] = player
-        else:
-            player = gemini_pro_player_dict[str(message.from_user.id)]
-        if len(player.history) > 10:
-            player.history = player.history[2:]
-        try:
-            sent_message = await bot.reply_to(message, before_generate_info)
-            await send_message(player, m)
-            try:
-                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
-            except:
-                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-
-        except Exception:
-            traceback.print_exc()
-            await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-
+        await gemini_pro(bot,message,m)
+            
     @bot.message_handler(commands=["clear"])
     async def gemini_handler(message: Message):
         # Check if the player is already in gemini_player_dict.
-        if str(message.from_user.id) in gemini_player_dict:
+        if (str(message.from_user.id) in gemini_player_dict):
             del gemini_player_dict[str(message.from_user.id)]
-            await bot.reply_to(message, "Your history has been cleared")
-        else:
-            await bot.reply_to(message, "You have no history now")
-
-    @bot.message_handler(commands=["clear_gemini_pro"])
-    async def gemini_handler(message: Message):
-        # Check if the player is already in gemini_player_dict.
-        if str(message.from_user.id) in gemini_pro_player_dict:
+        if (str(message.from_user.id) in gemini_pro_player_dict):
             del gemini_pro_player_dict[str(message.from_user.id)]
-            await bot.reply_to(message, "Your gemini-pro:1.5 history has been cleared")
-        else:
-            await bot.reply_to(message, "You have no gemini-pro:1.5 history now")
+        await bot.reply_to(message, "Your history has been cleared")
 
+    @bot.message_handler(commands=["switch"])
+    async def gemini_handler(message: Message):
+        if message.chat.type != "private":
+            await bot.reply_to( message , "This command is only for private chat !")
+            return
+        # Check if the player is already in default_model_dict.
+        if str(message.from_user.id) not in default_model_dict:
+            default_model_dict[str(message.from_user.id)] = False
+            await bot.reply_to( message , "Now you are using gemini-pro:1.5")
+            return
+        if default_model_dict[str(message.from_user.id)] == True:
+            default_model_dict[str(message.from_user.id)] = False
+            await bot.reply_to( message , "Now you are using gemini-pro:1.5")
+        else:
+            default_model_dict[str(message.from_user.id)] = True
+            await bot.reply_to( message , "Now you are using gemini-pro:1.0")
+        
+    
     
     @bot.message_handler(func=lambda message: message.chat.type == "private", content_types=['text'])
     async def gemini_private_handler(message: Message):
         m = message.text.strip()
-        player = None 
-        # Check if the player is already in gemini_player_dict.
-        if str(message.from_user.id) not in gemini_player_dict:
-            player = await make_new_gemini_convo()
-            gemini_player_dict[str(message.from_user.id)] = player
-        else:
-            player = gemini_player_dict[str(message.from_user.id)]
-        # Control the length of the history record.
-        if len(player.history) > 10:
-            player.history = player.history[2:]
-        try:
-            sent_message = await bot.reply_to(message, before_generate_info)
-            await send_message(player, m)
-            try:
-                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
-            except:
-                await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id)
 
-        except Exception:
-            traceback.print_exc()
-            await bot.reply_to(message, error_info)
+        if str(message.from_user.id) not in default_model_dict:
+            default_model_dict[str(message.from_user.id)] = True
+            await gemini(bot,message,m)
+        else:
+            if default_model_dict[str(message.from_user.id)]:
+                await gemini(bot,message,m)
+            else:
+                await gemini_pro(bot,message,m)
+
 
     @bot.message_handler(content_types=["photo"])
     async def gemini_photo_handler(message: Message) -> None:
@@ -359,6 +361,7 @@ async def main():
             except Exception:
                 traceback.print_exc()
                 await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+
     # Start bot
     print("Starting Gemini_Telegram_Bot.")
     await bot.polling(none_stop=True)
