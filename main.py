@@ -15,7 +15,7 @@ error_info="⚠️⚠️⚠️\nSomething went wrong !\nplease try to change you
 before_generate_info="🤖Generating🤖"
 download_pic_notify="🤖Loading picture🤖"
 
-n = 10  #Number of historical records to keep
+n = 30  #Number of historical records to keep
 
 generation_config = {
     "temperature": 1,
@@ -139,7 +139,7 @@ async def make_new_gemini_convo():
 
     def create_convo():
         model = genai.GenerativeModel(
-            model_name="gemini-pro",
+            model_name="models/gemini-1.5-flash-latest",
             generation_config=generation_config,
             safety_settings=safety_settings,
         )
@@ -239,8 +239,8 @@ async def main():
     await bot.set_my_commands(
         commands=[
             telebot.types.BotCommand("start", "Start"),
-            telebot.types.BotCommand("gemini", "using model:gemini-pro-1.0"),
-            telebot.types.BotCommand("gemini_pro", "using model:gemini-pro-1.5"),
+            telebot.types.BotCommand("gemini", "using gemini-1.5-flash"),
+            telebot.types.BotCommand("gemini_pro", "using gemini-1.5-pro"),
             telebot.types.BotCommand("clear", "Clear all history"),
             telebot.types.BotCommand("switch","switch default model")
         ],
@@ -290,14 +290,14 @@ async def main():
         # Check if the player is already in default_model_dict.
         if str(message.from_user.id) not in default_model_dict:
             default_model_dict[str(message.from_user.id)] = False
-            await bot.reply_to( message , "Now you are using gemini-pro:1.5")
+            await bot.reply_to( message , "Now you are using gemini-1.5-pro")
             return
         if default_model_dict[str(message.from_user.id)] == True:
             default_model_dict[str(message.from_user.id)] = False
-            await bot.reply_to( message , "Now you are using gemini-pro:1.5")
+            await bot.reply_to( message , "Now you are using gemini-1.5-pro")
         else:
             default_model_dict[str(message.from_user.id)] = True
-            await bot.reply_to( message , "Now you are using gemini-pro:1.0")
+            await bot.reply_to( message , "Now you are using gemini-1.5-flash")
         
     
     
@@ -329,7 +329,7 @@ async def main():
             except Exception:
                 traceback.print_exc()
                 await bot.reply_to(message, error_info)
-            model = genai.GenerativeModel("gemini-pro-vision")
+            model = genai.GenerativeModel("gemini-1.5-flash-latest")
             contents = {
                 "parts": [{"mime_type": "image/jpeg", "data": downloaded_file}, {"text": prompt}]
             }
