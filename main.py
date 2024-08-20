@@ -350,7 +350,7 @@ async def main():
             except Exception:
                 traceback.print_exc()
                 await bot.reply_to(message, error_info)
-            model = genai.GenerativeModel("gemini-pro-vision")
+            model = genai.GenerativeModel("gemini-1.5-flash-latest")
             contents = {
                 "parts": [{"mime_type": "image/jpeg", "data": downloaded_file}, {"text": prompt}]
             }
