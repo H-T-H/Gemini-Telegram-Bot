@@ -16,6 +16,9 @@ error_info="⚠️⚠️⚠️\nSomething went wrong !\nplease try to change you
 before_generate_info="🤖Generating🤖"
 download_pic_notify="🤖Loading picture🤖"
 
+model_1 = "gemini-2.0-flash-exp"
+model_2 = "gemini-1.5-pro-latest"
+
 n = 30  #Number of historical records to keep
 
 generation_config = {
@@ -44,30 +47,14 @@ safety_settings = [
 ]
 
 # Prevent "create_convo" function from blocking the event loop.
-async def make_new_gemini_convo():
+async def make_new_gemini_convo(model_name):
     loop = asyncio.get_running_loop()
 
     def create_convo():
         model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash-exp",
-            generation_config=generation_config,
-            safety_settings=safety_settings,
-        )
-        convo = model.start_chat()
-        return convo
-
-    # Run the synchronous "create_convo" function in a thread pool
-    convo = await loop.run_in_executor(None, create_convo)
-    return convo
-
-async def make_new_gemini_pro_convo():
-    loop = asyncio.get_running_loop()
-
-    def create_convo():
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-pro-latest",
-            generation_config=generation_config,
-            safety_settings=safety_settings,
+            model_name          =   model_name,
+            generation_config   =   generation_config,
+            safety_settings     =   safety_settings,
         )
         convo = model.start_chat()
         return convo
@@ -91,34 +78,16 @@ async def async_generate_content(model, contents):
     response = await loop.run_in_executor(None, generate)
     return response
 
-async def gemini(bot,message,m):
+async def gemini(bot,message,m,model_type):
     player = None
-    if str(message.from_user.id) not in gemini_player_dict:
-        player = await make_new_gemini_convo()
-        gemini_player_dict[str(message.from_user.id)] = player
+    if      model_type == model_1:   
+        player_dict = gemini_player_dict 
+    else:   player_dict = gemini_pro_player_dict
+    if str(message.from_user.id) not in player_dict:
+        player = await make_new_gemini_convo(model_1)
+        player_dict[str(message.from_user.id)] = player
     else:
-        player = gemini_player_dict[str(message.from_user.id)]
-    if len(player.history) > n:
-        player.history = player.history[2:]
-    try:
-        sent_message = await bot.reply_to(message, before_generate_info)
-        await send_message(player, m)
-        try:
-            await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
-        except:
-            await bot.edit_message_text(escape(player.last.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-
-    except Exception:
-        traceback.print_exc()
-        await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-
-async def gemini_pro(bot,message,m):
-    player = None
-    if str(message.from_user.id) not in gemini_pro_player_dict:
-        player = await make_new_gemini_pro_convo()
-        gemini_pro_player_dict[str(message.from_user.id)] = player
-    else:
-        player = gemini_pro_player_dict[str(message.from_user.id)]
+        player = player_dict[str(message.from_user.id)]
     if len(player.history) > n:
         player.history = player.history[2:]
     try:
@@ -172,7 +141,7 @@ async def main():
         except IndexError:
             await bot.reply_to( message , escape("Please add what you want to say after /gemini. \nFor example: `/gemini Who is john lennon?`"), parse_mode="MarkdownV2")
             return
-        await gemini(bot,message,m)
+        await gemini(bot,message,m,model_1)
 
     @bot.message_handler(commands=["gemini_pro"])
     async def gemini_handler(message: Message):
@@ -181,7 +150,7 @@ async def main():
         except IndexError:
             await bot.reply_to( message , escape("Please add what you want to say after /gemini_pro. \nFor example: `/gemini_pro Who is john lennon?`"), parse_mode="MarkdownV2")
             return
-        await gemini_pro(bot,message,m)
+        await gemini(bot,message,m,model_2)
             
     @bot.message_handler(commands=["clear"])
     async def gemini_handler(message: Message):
@@ -217,12 +186,12 @@ async def main():
 
         if str(message.from_user.id) not in default_model_dict:
             default_model_dict[str(message.from_user.id)] = True
-            await gemini(bot,message,m)
+            await gemini(bot,message,m,model_1)
         else:
             if default_model_dict[str(message.from_user.id)]:
-                await gemini(bot,message,m)
+                await gemini(bot,message,m,model_1)
             else:
-                await gemini_pro(bot,message,m)
+                await gemini(bot,message,m,model_2)
 
 
     @bot.message_handler(content_types=["photo"])
