@@ -1,7 +1,7 @@
 # Gemini_Telegram_Bot
 A Telegram Bot using Gemini API
 # Demo
-[Click](https://t.me/gemini_telegram_demo_bot)
+[Click here](https://t.me/gemini_telegram_demo_bot)
 
 # How to Install
 ## (1) On Linux
@@ -16,7 +16,11 @@ pip install -r requirements.txt
 python main.py ${Telegram Bot API} ${Gemini API keys}
 ```
 ## (2)Deploy Using Docker
-### build
+### Use the built image(x86 only)
+```
+docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram Bot API} -e GEMINI_API_KEYS={Gemini API Key} qwqhthqwq/gemini-telegram-bot:main
+```
+### build by yourself
 1. Get Telegram Bot API at [BotFather](https://t.me/BotFather)
 2. Get Gemini API keys on [Google AI Studio](https://makersuite.google.com/app/apikey)
 3. Clone repository
