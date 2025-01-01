@@ -68,4 +68,4 @@ Who is John Lennon?
 
 # Reference
 1. [https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)
-2. [https://github.com/yym68686/md2tgmd/blob/main/src/md2tgmd.py](https://github.com/yym68686/md2tgmd)
+2. [https://github.com/yym68686/md2tgmd](https://github.com/yym68686/md2tgmd)
