@@ -54,11 +54,11 @@ async def switch(message: Message, bot: TeleBot) -> None:
     # Check if the player is already in default_model_dict.
     if str(message.from_user.id) not in default_model_dict:
         default_model_dict[str(message.from_user.id)] = False
-        await bot.reply_to( message , "Now you are using"+model_2)
+        await bot.reply_to( message , "Now you are using "+model_2)
         return
     if default_model_dict[str(message.from_user.id)] == True:
         default_model_dict[str(message.from_user.id)] = False
-        await bot.reply_to( message , "Now you are using"+model_2)
+        await bot.reply_to( message , "Now you are using "+model_2)
     else:
         default_model_dict[str(message.from_user.id)] = True
         await bot.reply_to( message , "Now you are using "+model_1)
