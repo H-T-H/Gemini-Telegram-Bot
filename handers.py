@@ -39,7 +39,10 @@ async def gemini_pro_handler(message: Message, bot: TeleBot) -> None:
         return
     await gemini.gemini(bot,message,m,model_2)
 
-    async def gemini_stream_handler(message: Message, bot: TeleBot) -> None:
+
+# Add a new streaming command processing function
+async def gemini_stream_handler(message: Message, bot: TeleBot) -> None:
+
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
