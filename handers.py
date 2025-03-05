@@ -40,11 +40,11 @@ async def gemini_pro_handler(message: Message, bot: TeleBot) -> None:
     await gemini.gemini(bot,message,m,model_2)
 
     async def gemini_stream_handler(message: Message, bot: TeleBot) -> None:
-    try:
-        m = message.text.strip().split(maxsplit=1)[1].strip()
-    except IndexError:
-        await bot.reply_to(message, escape("Please add what you want to say after /gemini_stream. \nFor example: `/gemini_stream Who is john lennon?`"), parse_mode="MarkdownV2")
-        return
+        try:
+            m = message.text.strip().split(maxsplit=1)[1].strip()
+        except IndexError:
+            await bot.reply_to(message, escape("Please add what you want to say after /gemini_stream. \nFor example: `/gemini_stream Who is john lennon?`"), parse_mode="MarkdownV2")
+            return
     await gemini.gemini_stream(bot, message, m, model_1)
 
 async def gemini_pro_stream_handler(message: Message, bot: TeleBot) -> None:
