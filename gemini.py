@@ -77,7 +77,9 @@ async def gemini(bot, message, m, model_type):
         await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
         
 async def gemini_stream(bot, message, m, model_type):
+
     sent_message = None
+
     try:
         model = genai.GenerativeModel(
             model_name=model_type,
@@ -85,8 +87,10 @@ async def gemini_stream(bot, message, m, model_type):
             safety_settings=safety_settings
         )
         
+        beta
         sent_message = await bot.reply_to(message, "🔄 Generating answers...")
-
+        
+        main
         player = None
         if model_type == model_1:   
             player_dict = gemini_player_dict 
@@ -102,6 +106,7 @@ async def gemini_stream(bot, message, m, model_type):
         if len(player.history) > n:
             player.history = player.history[2:]
         
+
         response = model.generate_content(m, stream=True)
         
         full_response = ""
@@ -168,6 +173,7 @@ async def gemini_stream(bot, message, m, model_type):
                 
     except Exception as e:
         traceback.print_exc()
+
         if sent_message:
             await bot.edit_message_text(
                 f"{error_info}\nError details: {str(e)}",
@@ -176,3 +182,4 @@ async def gemini_stream(bot, message, m, model_type):
             )
         else:
             await bot.reply_to(message, f"{error_info}\nError details: {str(e)}")
+
