@@ -77,6 +77,7 @@ async def gemini(bot, message, m, model_type):
         await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
         
 async def gemini_stream(bot, message, m, model_type):
+    sent_message = None
     try:
         model = genai.GenerativeModel(
             model_name=model_type,
@@ -84,8 +85,8 @@ async def gemini_stream(bot, message, m, model_type):
             safety_settings=safety_settings
         )
         
-        sent_message = await bot.reply_to(message, before_generate_info)
-        
+        sent_message = await bot.reply_to(message, "🔄 Generating answers...")
+
         player = None
         if model_type == model_1:   
             player_dict = gemini_player_dict 
@@ -101,52 +102,77 @@ async def gemini_stream(bot, message, m, model_type):
         if len(player.history) > n:
             player.history = player.history[2:]
         
-        stream = await async_generate_content_stream(model, m)
+        response = model.generate_content(m, stream=True)
         
         full_response = ""
-        update_interval = 1.0
-        last_update_time = asyncio.get_event_loop().time()
+        last_update = asyncio.get_event_loop().time()
+        update_interval = 0.5
         
-        async for chunk in stream:
+        print("Start streaming answers")
+
+        edit_lock = asyncio.Lock()
+
+        for chunk in response:
             if hasattr(chunk, 'text') and chunk.text:
                 full_response += chunk.text
                 current_time = asyncio.get_event_loop().time()
-                
-                if current_time - last_update_time >= update_interval:
-                    try:
-                        await bot.edit_message_text(
-                            escape(full_response), 
-                            chat_id=sent_message.chat.id, 
-                            message_id=sent_message.message_id, 
-                            parse_mode="MarkdownV2"
-                        )
-                        last_update_time = current_time
-                    except Exception as e:
-                        if "message is not modified" not in str(e).lower():
-                            raise e
-        
+
+                if current_time - last_update >= update_interval:
+
+                    async with edit_lock:
+                        try:
+                            print(f"Update message, length: {len(full_response)}")
+
+                            try:
+                                await bot.edit_message_text(
+                                    escape(full_response),
+                                    chat_id=sent_message.chat.id,
+                                    message_id=sent_message.message_id,
+                                    parse_mode="MarkdownV2"
+                                )
+                            except Exception as e:
+                                if "parse markdown" in str(e).lower():
+                                    await bot.edit_message_text(
+                                        full_response,
+                                        chat_id=sent_message.chat.id,
+                                        message_id=sent_message.message_id
+                                    )
+                                else:
+                                    if "message is not modified" not in str(e).lower():
+                                        print(f"Error updating message: {e}")
+                            last_update = current_time
+                        except Exception as e:
+                            print(f"Streaming update error (non-fatal): {e}")
+
         try:
+            print("Send final full response")
             await bot.edit_message_text(
-                escape(full_response), 
-                chat_id=sent_message.chat.id, 
-                message_id=sent_message.message_id, 
+                escape(full_response),
+                chat_id=sent_message.chat.id,
+                message_id=sent_message.message_id,
                 parse_mode="MarkdownV2"
             )
         except Exception as e:
-            if "message is not modified" not in str(e).lower():
-                await bot.edit_message_text(
-                    full_response, 
-                    chat_id=sent_message.chat.id, 
-                    message_id=sent_message.message_id
-                )
-
+            try:
+                if "parse markdown" in str(e).lower():
+                    await bot.edit_message_text(
+                        full_response,
+                        chat_id=sent_message.chat.id,
+                        message_id=sent_message.message_id
+                    )
+            except Exception:
+                traceback.print_exc()
+            
         player.history.append({"role": "user", "parts": [m]})
         player.history.append({"role": "model", "parts": [full_response]})
                 
     except Exception as e:
         traceback.print_exc()
-        await bot.edit_message_text(
-            f"{error_info}\n{str(e)}", 
-            chat_id=sent_message.chat.id, 
-            message_id=sent_message.message_id
-        )
+        if sent_message:
+            await bot.edit_message_text(
+                f"{error_info}\nError details: {str(e)}",
+                chat_id=sent_message.chat.id,
+                message_id=sent_message.message_id
+            )
+        else:
+            await bot.reply_to(message, f"{error_info}\nError details: {str(e)}")
