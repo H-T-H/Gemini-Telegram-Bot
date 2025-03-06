@@ -24,14 +24,16 @@ async def main():
     bot = AsyncTeleBot(options.tg_token)
     await bot.delete_my_commands(scope=None, language_code=None)
     await bot.set_my_commands(
-        commands=[
-            telebot.types.BotCommand("start", "Start"),
-            telebot.types.BotCommand("gemini", "using gemini-2.0-flash-exp"),
-            telebot.types.BotCommand("gemini_pro", "using gemini-1.5-pro"),
-            telebot.types.BotCommand("clear", "Clear all history"),
-            telebot.types.BotCommand("switch","switch default model")
-        ],
-    )
+    commands=[
+        telebot.types.BotCommand("start", "Start"),
+        telebot.types.BotCommand("gemini", "using gemini-2.0-flash-exp"),
+        telebot.types.BotCommand("gemini_pro", "using gemini-1.5-pro"),
+        telebot.types.BotCommand("gemini_stream", "using gemini-2.0-flash-exp with streaming"),
+        telebot.types.BotCommand("gemini_pro_stream", "using gemini-1.5-pro with streaming"),
+        telebot.types.BotCommand("clear", "Clear all history"),
+        telebot.types.BotCommand("switch","switch default model")
+    ],
+)
     print("Bot init done.")
 
     # Init commands
@@ -41,6 +43,8 @@ async def main():
     bot.register_message_handler(handers.clear,                 commands=['clear'],         pass_bot=True)
     bot.register_message_handler(handers.switch,                commands=['switch'],        pass_bot=True)
     bot.register_message_handler(handers.gemini_photo_handler,  content_types=["photo"],    pass_bot=True)
+    bot.register_message_handler(handers.gemini_stream_handler,     commands=['gemini_stream'],     pass_bot=True)
+    bot.register_message_handler(handers.gemini_pro_stream_handler, commands=['gemini_pro_stream'], pass_bot=True)
     bot.register_message_handler(
         handers.gemini_private_handler,
         func=lambda message: message.chat.type == "private",
@@ -53,3 +57,4 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+    
