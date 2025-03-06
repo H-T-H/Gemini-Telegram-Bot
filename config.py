@@ -6,7 +6,6 @@ conf = {
     "model_2":              "gemini-1.5-pro-latest",
     "n": 30,  #Number of historical records to keep
     "streaming_update_interval": 1.0,  # Streaming answer update interval (seconds)
-    "streaming_enabled_by_default": True,  # Whether to enable streaming answers by default
 }
 
 
