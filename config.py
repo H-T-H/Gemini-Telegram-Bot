@@ -5,7 +5,7 @@ conf = {
     "model_1":              "gemini-2.0-flash",
     "model_2":              "gemini-1.5-pro-latest",
     "n": 30,  #Number of historical records to keep
-    "streaming_update_interval": 1.0,  # Streaming answer update interval (seconds)
+    "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
 }
 
 
