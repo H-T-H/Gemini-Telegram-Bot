@@ -41,7 +41,7 @@ async def async_generate_content(model, contents):
         return model.generate_content(contents=contents)
 
     response_stream = await loop.run_in_executor(None, generate)
-    return response
+    return response_stream
 
 async def async_generate_content_stream(model, contents):
     loop = asyncio.get_running_loop()
