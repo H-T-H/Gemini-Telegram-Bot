@@ -106,7 +106,7 @@ async def gemini_stream(bot, message, m, model_type):
         
         full_response = ""
         last_update = asyncio.get_event_loop().time()
-        update_interval = 0.5
+        update_interval = conf["streaming_update_interval"]
         
         print("Start streaming answers")
 
