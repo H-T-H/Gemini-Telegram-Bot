@@ -23,28 +23,11 @@ async def start(message: Message, bot: TeleBot) -> None:
     except IndexError:
         await bot.reply_to(message, error_info)
 
-async def gemini_handler(message: Message, bot: TeleBot) -> None:
-    try:
-        m = message.text.strip().split(maxsplit=1)[1].strip()
-    except IndexError:
-        await bot.reply_to( message , escape("Please add what you want to say after /gemini. \nFor example: `/gemini Who is john lennon?`"), parse_mode="MarkdownV2")
-        return
-    await gemini.gemini(bot,message,m,model_1)
-
-async def gemini_pro_handler(message: Message, bot: TeleBot) -> None:
-    try:
-        m = message.text.strip().split(maxsplit=1)[1].strip()
-    except IndexError:
-        await bot.reply_to( message , escape("Please add what you want to say after /gemini_pro. \nFor example: `/gemini_pro Who is john lennon?`"), parse_mode="MarkdownV2")
-        return
-    await gemini.gemini(bot,message,m,model_2)
-
-# Add a new streaming command processing function
 async def gemini_stream_handler(message: Message, bot: TeleBot) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
-        await bot.reply_to(message, escape("Please add what you want to say after /gemini_stream. \nFor example: `/gemini_stream Who is john lennon?`"), parse_mode="MarkdownV2")
+        await bot.reply_to(message, escape("Please add what you want to say after /gemini. \nFor example: `/gemini Who is john lennon?`"), parse_mode="MarkdownV2")
         return
     await gemini.gemini_stream(bot, message, m, model_1)
 
@@ -52,7 +35,7 @@ async def gemini_pro_stream_handler(message: Message, bot: TeleBot) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
-        await bot.reply_to(message, escape("Please add what you want to say after /gemini_pro_stream. \nFor example: `/gemini_pro_stream Who is john lennon?`"), parse_mode="MarkdownV2")
+        await bot.reply_to(message, escape("Please add what you want to say after /gemini_pro. \nFor example: `/gemini_pro Who is john lennon?`"), parse_mode="MarkdownV2")
         return
     await gemini.gemini_stream(bot, message, m, model_2)
 
@@ -84,12 +67,12 @@ async def gemini_private_handler(message: Message, bot: TeleBot) -> None:
     m = message.text.strip()
     if str(message.from_user.id) not in default_model_dict:
         default_model_dict[str(message.from_user.id)] = True
-        await gemini.gemini(bot,message,m,model_1)
+        await gemini.gemini_stream(bot,message,m,model_1)
     else:
         if default_model_dict[str(message.from_user.id)]:
-            await gemini.gemini(bot,message,m,model_1)
+            await gemini.gemini_stream(bot,message,m,model_1)
         else:
-            await gemini.gemini(bot,message,m,model_2)
+            await gemini.gemini_stream(bot,message,m,model_2)
 
 async def gemini_photo_handler(message: Message, bot: TeleBot) -> None:
     if message.chat.type != "private":

@@ -5,7 +5,7 @@ conf = {
     "model_1":              "gemini-2.0-flash",
     "model_2":              "gemini-1.5-pro-latest",
     "n": 30,  #Number of historical records to keep
-    "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
+    "streaming_update_interval": 1,  # Streaming answer update interval (seconds)
 }
 
 
@@ -13,7 +13,7 @@ generation_config = {
     "temperature": 1,
     "top_p": 1,
     "top_k": 1,
-    "max_output_tokens": 1024,
+    "max_output_tokens": 10000,
 }
 
 safety_settings = [
@@ -21,7 +21,7 @@ safety_settings = [
         "category": "HARM_CATEGORY_HARASSMENT",
         "threshold": "BLOCK_NONE"
     },
-    {   
+    {
         "category": "HARM_CATEGORY_HATE_SPEECH",
         "threshold": "BLOCK_NONE"
     },

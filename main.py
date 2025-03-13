@@ -6,7 +6,6 @@ import re
 import telebot
 from telebot.async_telebot import AsyncTeleBot
 from telebot.types import  Message
-from md2tgmd import escape
 import handers
 from config import conf, generation_config, safety_settings
 
@@ -28,8 +27,6 @@ async def main():
         telebot.types.BotCommand("start", "Start"),
         telebot.types.BotCommand("gemini", "using gemini-2.0-flash-exp"),
         telebot.types.BotCommand("gemini_pro", "using gemini-1.5-pro"),
-        telebot.types.BotCommand("gemini_stream", "using gemini-2.0-flash-exp with streaming"),
-        telebot.types.BotCommand("gemini_pro_stream", "using gemini-1.5-pro with streaming"),
         telebot.types.BotCommand("clear", "Clear all history"),
         telebot.types.BotCommand("switch","switch default model")
     ],
@@ -37,14 +34,12 @@ async def main():
     print("Bot init done.")
 
     # Init commands
-    bot.register_message_handler(handers.start,                 commands=['start'],         pass_bot=True)
-    bot.register_message_handler(handers.gemini_handler,        commands=['gemini'],        pass_bot=True)
-    bot.register_message_handler(handers.gemini_pro_handler,    commands=['gemini_pro'],    pass_bot=True)
-    bot.register_message_handler(handers.clear,                 commands=['clear'],         pass_bot=True)
-    bot.register_message_handler(handers.switch,                commands=['switch'],        pass_bot=True)
-    bot.register_message_handler(handers.gemini_photo_handler,  content_types=["photo"],    pass_bot=True)
-    bot.register_message_handler(handers.gemini_stream_handler,     commands=['gemini_stream'],     pass_bot=True)
-    bot.register_message_handler(handers.gemini_pro_stream_handler, commands=['gemini_pro_stream'], pass_bot=True)
+    bot.register_message_handler(handers.start,                         commands=['start'],         pass_bot=True)
+    bot.register_message_handler(handers.gemini_stream_handler,         commands=['gemini'],        pass_bot=True)
+    bot.register_message_handler(handers.gemini_pro_stream_handler,     commands=['gemini_pro'],    pass_bot=True)
+    bot.register_message_handler(handers.clear,                         commands=['clear'],         pass_bot=True)
+    bot.register_message_handler(handers.switch,                        commands=['switch'],        pass_bot=True)
+    bot.register_message_handler(handers.gemini_photo_handler,          content_types=["photo"],    pass_bot=True)
     bot.register_message_handler(
         handers.gemini_private_handler,
         func=lambda message: message.chat.type == "private",
@@ -57,4 +52,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-    
