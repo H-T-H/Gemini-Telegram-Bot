@@ -115,7 +115,7 @@ async def gemini_photo_handler(message: Message, bot: TeleBot) -> None:
         try:
             await bot.edit_message_text(before_generate_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
             response = await gemini.async_generate_content(model, contents)
-            await bot.edit_message_text(response.text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            await bot.edit_message_text(escape(response.text), chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
         except Exception:
             traceback.print_exc()
             await bot.edit_message_text(error_info, chat_id=sent_message.chat.id, message_id=sent_message.message_id)

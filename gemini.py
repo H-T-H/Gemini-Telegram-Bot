@@ -43,15 +43,6 @@ async def async_generate_content(model, contents):
     response_stream = await loop.run_in_executor(None, generate)
     return response_stream
 
-async def async_generate_content_stream(model, contents):
-    loop = asyncio.get_running_loop()
-
-    def generate_stream():
-        return model.generate_content(contents=contents, stream=True)
-
-    response_stream = await loop.run_in_executor(None, generate_stream)
-    return response_stream
-
 async def gemini_stream(bot, message, m, model_type):
     sent_message = None
     try:
