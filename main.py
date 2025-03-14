@@ -24,6 +24,7 @@ async def main():
         telebot.types.BotCommand("start", "Start"),
         telebot.types.BotCommand("gemini", "using gemini-2.0-flash-exp"),
         telebot.types.BotCommand("gemini_pro", "using gemini-1.5-pro"),
+        telebot.types.BotCommand("draw", "draw picture"),
         telebot.types.BotCommand("edit", "edit photo"),
         telebot.types.BotCommand("clear", "Clear all history"),
         telebot.types.BotCommand("switch","switch default model")
@@ -35,6 +36,7 @@ async def main():
     bot.register_message_handler(handlers.start,                         commands=['start'],         pass_bot=True)
     bot.register_message_handler(handlers.gemini_stream_handler,         commands=['gemini'],        pass_bot=True)
     bot.register_message_handler(handlers.gemini_pro_stream_handler,     commands=['gemini_pro'],    pass_bot=True)
+    bot.register_message_handler(handlers.draw_handler,                  commands=['draw'],          pass_bot=True)
     bot.register_message_handler(handlers.gemini_edit_handler,           commands=['edit'],          pass_bot=True)
     bot.register_message_handler(handlers.clear,                         commands=['clear'],         pass_bot=True)
     bot.register_message_handler(handlers.switch,                        commands=['switch'],        pass_bot=True)

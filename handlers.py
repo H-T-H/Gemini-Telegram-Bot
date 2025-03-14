@@ -112,3 +112,11 @@ async def gemini_edit_handler(message: Message, bot: TeleBot) -> None:
         await bot.reply_to(message, e.str())
         return
     await gemini.gemini_edit(bot, message, m, photo_file)
+
+async def draw_handler(message: Message, bot: TeleBot) -> None:
+    try:
+        m = message.text.strip().split(maxsplit=1)[1].strip()
+    except IndexError:
+        await bot.reply_to(message, escape("Please add what you want to draw after /draw. \nFor example: `/draw draw me a cat.`"), parse_mode="MarkdownV2")
+        return
+    await gemini.gemini_draw(bot, message, m)

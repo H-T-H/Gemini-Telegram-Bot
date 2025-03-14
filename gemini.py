@@ -1,15 +1,15 @@
-from config import conf, generation_config
-from google import genai
+import io
+import time
 import traceback
 import sys
+from PIL import Image
 from telebot.types import Message
 from md2tgmd import escape
 from telebot import TeleBot
-import io
-from PIL import Image
-import time
+from config import conf, generation_config
+from google import genai
 
-
+gemini_draw_dict = {}
 gemini_chat_dict = {}
 gemini_pro_chat_dict = {}
 default_model_dict = {}
@@ -24,7 +24,7 @@ search_tool = {'google_search': {}}
 
 client = genai.Client(api_key=sys.argv[2])
 
-async def gemini_stream(bot, message, m, model_type):
+async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
     sent_message = None
     try:
         sent_message = await bot.reply_to(message, "🤖 Generating answers...")
@@ -41,9 +41,7 @@ async def gemini_stream(bot, message, m, model_type):
         else:
             chat = chat_dict[str(message.from_user.id)]
 
-        response = await chat.send_message_stream(
-            m,
-            )
+        response = await chat.send_message_stream(m)
 
         full_response = ""
         last_update = time.time()
@@ -108,14 +106,41 @@ async def gemini_stream(bot, message, m, model_type):
 async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes):
 
     image = Image.open(io.BytesIO(photo_file))
-    response = await client.aio.models.generate_content(
+    try:
+        response = await client.aio.models.generate_content(
         model=model_1,
         contents=[m, image],
         config=generation_config
     )
+    except Exception as e:
+        await bot.send_message(message.chat.id, e.str())
     for part in response.candidates[0].content.parts:
         if part.text is not None:
             await bot.send_message(message.chat.id, escape(part.text), parse_mode="MarkdownV2")
+        elif part.inline_data is not None:
+            photo = part.inline_data.data
+            await bot.send_photo(message.chat.id, photo)
+
+async def gemini_draw(bot:TeleBot, message:Message, m:str):
+    chat_dict = gemini_draw_dict
+    if str(message.from_user.id) not in chat_dict:
+        chat = client.aio.chats.create(
+            model=model_1,
+            config=generation_config,
+        )
+        chat_dict[str(message.from_user.id)] = chat
+    else:
+        chat = chat_dict[str(message.from_user.id)]
+
+    response = await chat.send_message(m)
+    for part in response.candidates[0].content.parts:
+        if part.text is not None:
+            text = part.text
+            while len(text) > 4000:
+                await bot.send_message(message.chat.id, escape(text[:4000]), parse_mode="MarkdownV2")
+                text = text[4000:]
+            if text:
+                await bot.send_message(message.chat.id, escape(text), parse_mode="MarkdownV2")
         elif part.inline_data is not None:
             photo = part.inline_data.data
             await bot.send_photo(message.chat.id, photo)
