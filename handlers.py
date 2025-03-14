@@ -11,9 +11,10 @@ download_pic_notify     =       conf["download_pic_notify"]
 model_1                 =       conf["model_1"]
 model_2                 =       conf["model_2"]
 
-gemini_chat_dict = gemini.gemini_chat_dict
-gemini_pro_chat_dict = gemini.gemini_pro_chat_dict
-default_model_dict = gemini.default_model_dict
+gemini_chat_dict        = gemini.gemini_chat_dict
+gemini_pro_chat_dict    = gemini.gemini_pro_chat_dict
+default_model_dict      = gemini.default_model_dict
+gemini_draw_dict        = gemini.gemini_draw_dict
 
 async def start(message: Message, bot: TeleBot) -> None:
     try:
@@ -43,6 +44,8 @@ async def clear(message: Message, bot: TeleBot) -> None:
         del gemini_chat_dict[str(message.from_user.id)]
     if (str(message.from_user.id) in gemini_pro_chat_dict):
         del gemini_pro_chat_dict[str(message.from_user.id)]
+    if (str(message.from_user.id) in gemini_draw_dict):
+        del gemini_draw_dict[str(message.from_user.id)]
     await bot.reply_to(message, "Your history has been cleared")
 
 async def switch(message: Message, bot: TeleBot) -> None:
