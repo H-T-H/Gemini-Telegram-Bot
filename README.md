@@ -53,9 +53,11 @@ docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} 
 
 # 使用方法
 1. 私聊中直接发送你的问题即可
-2. 群组中使用 **/gemini** 或者 **/gemini_pro** +你的问题
+2. 群组中使用 **/gemini** 或者 **/gemini_pro +你的问题**，支持多轮对话
 3. 删除对话的历史记录请使用 **/clear**
 4. 切换私聊中默认调用的模型请使用 **/switch**
+5. 绘图使用 **/draw+你要的图片**，支持多轮对话
+6. 编辑图片使用 **/edit + 你上传的图片+你要修改的地方**
 
 # 参考信息
 1. [https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)

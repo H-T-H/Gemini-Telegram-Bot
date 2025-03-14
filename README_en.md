@@ -52,22 +52,12 @@ Click on the button below for a one-click deployment.
 
 
 # How to Use
-1. If you want to communicate with the bot in a group, your chat must start with **/gemini** or **/gemini_pro**.
-```
-/gemini Who is John Lennon?
-```
-```
-/gemini_pro Who is John Lennon?
-```
-2. If you are having a private chat with the bot, you can directly send what you want.
-```
-Who is John Lennon?
-```
+1. Send your questions directly in a private chat.
+2.  In a group chat, use **/gemini** or /gemini\_pro + your question. Multi-turn conversations are supported.
 3. You can use the **/clear** command to delete the current conversation history.
-
 4. You can use the **/switch** command to switch the model.
-
-
+5. To generate images, use **/draw** + the image you want. Multi-turn conversations are supported.
+6. To edit images, use **/edit** + the image you upload + the edits you want to make.
 
 
 # Reference
