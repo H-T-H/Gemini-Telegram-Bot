@@ -1,108 +1,81 @@
-from config import conf, generation_config, safety_settings
-import asyncio
-import google.generativeai as genai
+from config import conf, generation_config
+from google import genai
 import traceback
+import sys
+from telebot.types import Message
 from md2tgmd import escape
-gemini_player_dict = {}
-gemini_pro_player_dict = {}
+from telebot import TeleBot
+import io
+from PIL import Image
+import time
+
+
+gemini_chat_dict = {}
+gemini_pro_chat_dict = {}
 default_model_dict = {}
 
-n = conf["n"]
 model_1                 =       conf["model_1"]
 model_2                 =       conf["model_2"]
 error_info              =       conf["error_info"]
 before_generate_info    =       conf["before_generate_info"]
 download_pic_notify     =       conf["download_pic_notify"]
 
-async def make_new_gemini_convo(model_name):
-    loop = asyncio.get_running_loop()
+search_tool = {'google_search': {}}
 
-    def create_convo():
-        model = genai.GenerativeModel(
-            model_name          =   model_name,
-            generation_config   =   generation_config,
-            safety_settings     =   safety_settings,
-        )
-        convo = model.start_chat()
-        return convo
-
-    # Run the synchronous "create_convo" function in a thread pool
-    convo = await loop.run_in_executor(None, create_convo)
-    return convo
-
-async def async_generate_content(model, contents):
-    loop = asyncio.get_running_loop()
-
-    def generate():
-        return model.generate_content(contents=contents)
-
-    response_stream = await loop.run_in_executor(None, generate)
-    return response_stream
+client = genai.Client(api_key=sys.argv[2])
 
 async def gemini_stream(bot, message, m, model_type):
     sent_message = None
     try:
         sent_message = await bot.reply_to(message, "🤖 Generating answers...")
 
-        player = None
+        chat = None
         if model_type == model_1:
-            player_dict = gemini_player_dict
+            chat_dict = gemini_chat_dict
         else:
-            player_dict = gemini_pro_player_dict
+            chat_dict = gemini_pro_chat_dict
 
-        if str(message.from_user.id) not in player_dict:
-            player = await make_new_gemini_convo(model_type)
-            player_dict[str(message.from_user.id)] = player
+        if str(message.from_user.id) not in chat_dict:
+            chat = client.aio.chats.create(model=model_1, config={'tools': [search_tool]})
+            chat_dict[str(message.from_user.id)] = chat
         else:
-            player = player_dict[str(message.from_user.id)]
+            chat = chat_dict[str(message.from_user.id)]
 
-        if len(player.history) > n:
-            player.history = player.history[2:]
-
-        response = player.send_message(m, stream=True)
+        response = await chat.send_message_stream(
+            m,
+            )
 
         full_response = ""
-        last_update = asyncio.get_event_loop().time()
+        last_update = time.time()
         update_interval = conf["streaming_update_interval"]
 
-        print("Start streaming answers")
-
-        edit_lock = asyncio.Lock()
-
-        for chunk in response:
+        async for chunk in response:
             if hasattr(chunk, 'text') and chunk.text:
                 full_response += chunk.text
-                current_time = asyncio.get_event_loop().time()
+                current_time = time.time()
 
                 if current_time - last_update >= update_interval:
 
-                    async with edit_lock:
-                        try:
-                            print(f"Update message, length: {len(full_response)}")
-
-                            try:
-                                await bot.edit_message_text(
-                                    escape(full_response),
-                                    chat_id=sent_message.chat.id,
-                                    message_id=sent_message.message_id,
-                                    parse_mode="MarkdownV2"
+                    try:
+                        await bot.edit_message_text(
+                            escape(full_response),
+                            chat_id=sent_message.chat.id,
+                            message_id=sent_message.message_id,
+                            parse_mode="MarkdownV2"
+                            )
+                    except Exception as e:
+                        if "parse markdown" in str(e).lower():
+                            await bot.edit_message_text(
+                                full_response,
+                                chat_id=sent_message.chat.id,
+                                message_id=sent_message.message_id
                                 )
-                            except Exception as e:
-                                if "parse markdown" in str(e).lower():
-                                    await bot.edit_message_text(
-                                        full_response,
-                                        chat_id=sent_message.chat.id,
-                                        message_id=sent_message.message_id
-                                    )
-                                else:
-                                    if "message is not modified" not in str(e).lower():
-                                        print(f"Error updating message: {e}")
-                            last_update = current_time
-                        except Exception as e:
-                            print(f"Streaming update error (non-fatal): {e}")
+                        else:
+                            if "message is not modified" not in str(e).lower():
+                                print(f"Error updating message: {e}")
+                    last_update = current_time
 
         try:
-            print("Send final full response")
             await bot.edit_message_text(
                 escape(full_response),
                 chat_id=sent_message.chat.id,
@@ -131,3 +104,18 @@ async def gemini_stream(bot, message, m, model_type):
             )
         else:
             await bot.reply_to(message, f"{error_info}\nError details: {str(e)}")
+
+async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes):
+
+    image = Image.open(io.BytesIO(photo_file))
+    response = await client.aio.models.generate_content(
+        model=model_1,
+        contents=[m, image],
+        config=generation_config
+    )
+    for part in response.candidates[0].content.parts:
+        if part.text is not None:
+            await bot.send_message(message.chat.id, escape(part.text), parse_mode="MarkdownV2")
+        elif part.inline_data is not None:
+            photo = part.inline_data.data
+            await bot.send_photo(message.chat.id, photo)

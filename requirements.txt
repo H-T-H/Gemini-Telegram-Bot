@@ -1,4 +1,5 @@
 pyTelegramBotAPI
-google-generativeai
+google-genai
 aiohttp
 md2tgmd
+Pillow
