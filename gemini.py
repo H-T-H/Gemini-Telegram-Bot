@@ -30,10 +30,6 @@ async def make_new_gemini_convo(model_name):
     convo = await loop.run_in_executor(None, create_convo)
     return convo
 
-async def send_message(player, message):
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, player.send_message, message)
-
 async def async_generate_content(model, contents):
     loop = asyncio.get_running_loop()
 
@@ -46,12 +42,6 @@ async def async_generate_content(model, contents):
 async def gemini_stream(bot, message, m, model_type):
     sent_message = None
     try:
-        model = genai.GenerativeModel(
-            model_name=model_type,
-            generation_config=generation_config,
-            safety_settings=safety_settings
-        )
-
         sent_message = await bot.reply_to(message, "🤖 Generating answers...")
 
         player = None
@@ -69,7 +59,7 @@ async def gemini_stream(bot, message, m, model_type):
         if len(player.history) > n:
             player.history = player.history[2:]
 
-        response = model.generate_content(m, stream=True)
+        response = player.send_message(m, stream=True)
 
         full_response = ""
         last_update = asyncio.get_event_loop().time()
@@ -130,8 +120,6 @@ async def gemini_stream(bot, message, m, model_type):
             except Exception:
                 traceback.print_exc()
 
-        player.history.append({"role": "user", "parts": [m]})
-        player.history.append({"role": "model", "parts": [full_response]})
 
     except Exception as e:
         traceback.print_exc()
