@@ -121,5 +121,7 @@ async def draw_handler(message: Message, bot: TeleBot) -> None:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
         await bot.reply_to(message, escape("Please add what you want to draw after /draw. \nFor example: `/draw draw me a cat.`"), parse_mode="MarkdownV2")
-        return
+        return    
+    # reply to the message first
+    await bot.reply_to(message, "Drawing...")
     await gemini.gemini_draw(bot, message, m)
