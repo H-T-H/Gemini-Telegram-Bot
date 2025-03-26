@@ -36,7 +36,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             chat_dict = gemini_pro_chat_dict
 
         if str(message.from_user.id) not in chat_dict:
-            chat = client.aio.chats.create(model=model_1, config={'tools': [search_tool]})
+            chat = client.aio.chats.create(model=model_type, config={'tools': [search_tool]})
             chat_dict[str(message.from_user.id)] = chat
         else:
             chat = chat_dict[str(message.from_user.id)]
