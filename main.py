@@ -23,7 +23,7 @@ async def main():
     commands=[
         telebot.types.BotCommand("start", "Start"),
         telebot.types.BotCommand("gemini", "using gemini-2.0-flash-exp"),
-        telebot.types.BotCommand("gemini_pro", "using gemini-1.5-pro"),
+        telebot.types.BotCommand("gemini_pro", "using gemini-2.5-pro-exp-03-25"),
         telebot.types.BotCommand("draw", "draw picture"),
         telebot.types.BotCommand("edit", "edit photo"),
         telebot.types.BotCommand("clear", "Clear all history"),
