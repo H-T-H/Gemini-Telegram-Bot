@@ -22,8 +22,8 @@ async def main():
     await bot.set_my_commands(
     commands=[
         telebot.types.BotCommand("start", "Start"),
-        telebot.types.BotCommand("gemini", "using gemini-2.0-flash-exp"),
-        telebot.types.BotCommand("gemini_pro", "using gemini-2.5-pro-exp-03-25"),
+        telebot.types.BotCommand("gemini", f"using {conf['model_1']}"),
+        telebot.types.BotCommand("gemini_pro", f"using {conf['model_2']}"),
         telebot.types.BotCommand("draw", "draw picture"),
         telebot.types.BotCommand("edit", "edit photo"),
         telebot.types.BotCommand("clear", "Clear all history"),
