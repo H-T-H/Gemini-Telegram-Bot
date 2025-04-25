@@ -21,13 +21,13 @@ async def main():
     await bot.delete_my_commands(scope=None, language_code=None)
     await bot.set_my_commands(
     commands=[
-        telebot.types.BotCommand("start", "Start"),
-        telebot.types.BotCommand("gemini", "using gemini-2.0-flash-exp"),
-        telebot.types.BotCommand("gemini_pro", "using gemini-2.5-pro-exp-03-25"),
-        telebot.types.BotCommand("draw", "draw picture"),
-        telebot.types.BotCommand("edit", "edit photo"),
-        telebot.types.BotCommand("clear", "Clear all history"),
-        telebot.types.BotCommand("switch","switch default model")
+        telebot.types.BotCommand("start", "开始"),
+        telebot.types.BotCommand("gemini", "使用 gemini-2.0-flash-exp"),
+        telebot.types.BotCommand("gemini_pro", "使用 gemini-2.5-pro-exp-03-25"),
+        telebot.types.BotCommand("draw", "绘制图片"),
+        telebot.types.BotCommand("edit", "编辑照片"),
+        telebot.types.BotCommand("clear", "清除所有历史记录"),
+        telebot.types.BotCommand("switch","切换默认模型")
     ],
 )
     print("Bot init done.")
@@ -48,7 +48,7 @@ async def main():
         pass_bot=True)
 
     # Start bot
-    print("Starting Gemini_Telegram_Bot.")
+    print("正在启动 Gemini_Telegram_Bot。")
     await bot.polling(none_stop=True)
 
 if __name__ == '__main__':

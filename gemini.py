@@ -27,7 +27,7 @@ client = genai.Client(api_key=sys.argv[2])
 async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
     sent_message = None
     try:
-        sent_message = await bot.reply_to(message, "🤖 Generating answers...")
+        sent_message = await bot.reply_to(message, "🤖 正在生成回答...")
 
         chat = None
         if model_type == model_1:
@@ -96,12 +96,12 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
         traceback.print_exc()
         if sent_message:
             await bot.edit_message_text(
-                f"{error_info}\nError details: {str(e)}",
+                f"{error_info}\n错误详情: {str(e)}",
                 chat_id=sent_message.chat.id,
                 message_id=sent_message.message_id
             )
         else:
-            await bot.reply_to(message, f"{error_info}\nError details: {str(e)}")
+            await bot.reply_to(message, f"{error_info}\n错误详情: {str(e)}")
 
 async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes):
 

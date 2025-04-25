@@ -18,7 +18,7 @@ gemini_draw_dict        = gemini.gemini_draw_dict
 
 async def start(message: Message, bot: TeleBot) -> None:
     try:
-        await bot.reply_to(message , escape("Welcome, you can ask me questions now. \nFor example: `Who is john lennon?`"), parse_mode="MarkdownV2")
+        await bot.reply_to(message , escape("欢迎，您现在可以向我提问。\n例如：`约翰·列侬是谁？`"), parse_mode="MarkdownV2")
     except IndexError:
         await bot.reply_to(message, error_info)
 
@@ -26,7 +26,7 @@ async def gemini_stream_handler(message: Message, bot: TeleBot) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
-        await bot.reply_to(message, escape("Please add what you want to say after /gemini. \nFor example: `/gemini Who is john lennon?`"), parse_mode="MarkdownV2")
+        await bot.reply_to(message, escape("请在 /gemini 后添加您想说的内容。\n例如：`/gemini 约翰·列侬是谁？`"), parse_mode="MarkdownV2")
         return
     await gemini.gemini_stream(bot, message, m, model_1)
 
@@ -34,7 +34,7 @@ async def gemini_pro_stream_handler(message: Message, bot: TeleBot) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
-        await bot.reply_to(message, escape("Please add what you want to say after /gemini_pro. \nFor example: `/gemini_pro Who is john lennon?`"), parse_mode="MarkdownV2")
+        await bot.reply_to(message, escape("请在 /gemini_pro 后添加您想说的内容。\n例如：`/gemini_pro 约翰·列侬是谁？`"), parse_mode="MarkdownV2")
         return
     await gemini.gemini_stream(bot, message, m, model_2)
 
@@ -46,23 +46,23 @@ async def clear(message: Message, bot: TeleBot) -> None:
         del gemini_pro_chat_dict[str(message.from_user.id)]
     if (str(message.from_user.id) in gemini_draw_dict):
         del gemini_draw_dict[str(message.from_user.id)]
-    await bot.reply_to(message, "Your history has been cleared")
+    await bot.reply_to(message, "您的历史记录已被清除")
 
 async def switch(message: Message, bot: TeleBot) -> None:
     if message.chat.type != "private":
-        await bot.reply_to( message , "This command is only for private chat !")
+        await bot.reply_to( message , "此命令仅适用于私聊！")
         return
     # Check if the chat is already in default_model_dict.
     if str(message.from_user.id) not in default_model_dict:
         default_model_dict[str(message.from_user.id)] = False
-        await bot.reply_to( message , "Now you are using "+model_2)
+        await bot.reply_to( message , "您现在正在使用 "+model_2)
         return
     if default_model_dict[str(message.from_user.id)] == True:
         default_model_dict[str(message.from_user.id)] = False
-        await bot.reply_to( message , "Now you are using "+model_2)
+        await bot.reply_to( message , "您现在正在使用 "+model_2)
     else:
         default_model_dict[str(message.from_user.id)] = True
-        await bot.reply_to( message , "Now you are using "+model_1)
+        await bot.reply_to( message , "您现在正在使用 "+model_1)
 
 async def gemini_private_handler(message: Message, bot: TeleBot) -> None:
     m = message.text.strip()
@@ -103,7 +103,7 @@ async def gemini_photo_handler(message: Message, bot: TeleBot) -> None:
 
 async def gemini_edit_handler(message: Message, bot: TeleBot) -> None:
     if not message.photo:
-        await bot.reply_to(message, "pls send a photo")
+        await bot.reply_to(message, "请发送一张照片")
         return
     s = message.caption or ""
     try:
@@ -120,11 +120,11 @@ async def draw_handler(message: Message, bot: TeleBot) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
-        await bot.reply_to(message, escape("Please add what you want to draw after /draw. \nFor example: `/draw draw me a cat.`"), parse_mode="MarkdownV2")
+        await bot.reply_to(message, escape("请在 /draw 后添加您想绘制的内容。\n例如：`/draw 给我画一只猫。`"), parse_mode="MarkdownV2")
         return
     
     # reply to the message first, then delete the "drawing..." message
-    drawing_msg = await bot.reply_to(message, "Drawing...")
+    drawing_msg = await bot.reply_to(message, "正在绘制...")
     try:
         await gemini.gemini_draw(bot, message, m)
     finally:

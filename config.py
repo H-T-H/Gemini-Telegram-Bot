@@ -1,8 +1,8 @@
 from google.genai import types
 conf = {
-    "error_info":           "⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !",
-    "before_generate_info": "🤖Generating🤖",
-    "download_pic_notify":  "🤖Loading picture🤖",
+    "error_info":           "⚠️⚠️⚠️\n出现错误！\n请尝试更改您的提示或联系管理员！",
+    "before_generate_info": "🤖正在生成🤖",
+    "download_pic_notify":  "🤖正在加载图片🤖",
     "model_1":              "gemini-2.5-flash-preview-04-17",
     "model_2":              "gemini-2.5-pro-exp-03-25",
     "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
