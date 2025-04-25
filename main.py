@@ -5,7 +5,7 @@ import re
 import telebot
 from telebot.async_telebot import AsyncTeleBot
 import handlers
-from config import conf, generation_config, safety_settings
+from config import conf, generation_config, safety_settings, command_descriptions
 
 # Init args
 parser = argparse.ArgumentParser()
@@ -19,15 +19,19 @@ async def main():
     # Init bot
     bot = AsyncTeleBot(options.tg_token)
     await bot.delete_my_commands(scope=None, language_code=None)
+    
+    # 设置命令，使用默认语言（中文）
+    lang = conf["default_language"]
     await bot.set_my_commands(
     commands=[
-        telebot.types.BotCommand("start", "开始"),
-        telebot.types.BotCommand("gemini", "使用 gemini-2.0-flash-exp"),
-        telebot.types.BotCommand("gemini_pro", "使用 gemini-2.5-pro-exp-03-25"),
-        telebot.types.BotCommand("draw", "绘制图片"),
-        telebot.types.BotCommand("edit", "编辑照片"),
-        telebot.types.BotCommand("clear", "清除所有历史记录"),
-        telebot.types.BotCommand("switch","切换默认模型")
+        telebot.types.BotCommand("start", command_descriptions[lang]["start"]),
+        telebot.types.BotCommand("gemini", command_descriptions[lang]["gemini"]),
+        telebot.types.BotCommand("gemini_pro", command_descriptions[lang]["gemini_pro"]),
+        telebot.types.BotCommand("draw", command_descriptions[lang]["draw"]),
+        telebot.types.BotCommand("edit", command_descriptions[lang]["edit"]),
+        telebot.types.BotCommand("clear", command_descriptions[lang]["clear"]),
+        telebot.types.BotCommand("switch", command_descriptions[lang]["switch"]),
+        telebot.types.BotCommand("language", command_descriptions[lang]["language"])
     ],
 )
     print("Bot init done.")
@@ -40,6 +44,7 @@ async def main():
     bot.register_message_handler(handlers.gemini_edit_handler,           commands=['edit'],          pass_bot=True)
     bot.register_message_handler(handlers.clear,                         commands=['clear'],         pass_bot=True)
     bot.register_message_handler(handlers.switch,                        commands=['switch'],        pass_bot=True)
+    bot.register_message_handler(handlers.language_switch,               commands=['language'],      pass_bot=True)
     bot.register_message_handler(handlers.gemini_photo_handler,          content_types=["photo"],    pass_bot=True)
     bot.register_message_handler(
         handlers.gemini_private_handler,

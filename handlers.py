@@ -2,80 +2,100 @@ from telebot import TeleBot
 from telebot.types import Message
 from md2tgmd import escape
 import traceback
-from config import conf
+from config import conf, messages
 import gemini
 
-error_info              =       conf["error_info"]
-before_generate_info    =       conf["before_generate_info"]
-download_pic_notify     =       conf["download_pic_notify"]
-model_1                 =       conf["model_1"]
-model_2                 =       conf["model_2"]
+model_1 = conf["model_1"]
+model_2 = conf["model_2"]
 
-gemini_chat_dict        = gemini.gemini_chat_dict
-gemini_pro_chat_dict    = gemini.gemini_pro_chat_dict
-default_model_dict      = gemini.default_model_dict
-gemini_draw_dict        = gemini.gemini_draw_dict
+gemini_chat_dict = gemini.gemini_chat_dict
+gemini_pro_chat_dict = gemini.gemini_pro_chat_dict
+default_model_dict = gemini.default_model_dict
+gemini_draw_dict = gemini.gemini_draw_dict
+language_dict = gemini.language_dict
 
 async def start(message: Message, bot: TeleBot) -> None:
+    user_id = message.from_user.id
     try:
-        await bot.reply_to(message , escape("欢迎，您现在可以向我提问。\n例如：`约翰·列侬是谁？`"), parse_mode="MarkdownV2")
+        await bot.reply_to(message, escape(gemini.get_message("welcome_message", user_id)), parse_mode="MarkdownV2")
     except IndexError:
-        await bot.reply_to(message, error_info)
+        await bot.reply_to(message, gemini.get_message("error_info", user_id))
 
 async def gemini_stream_handler(message: Message, bot: TeleBot) -> None:
+    user_id = message.from_user.id
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
-        await bot.reply_to(message, escape("请在 /gemini 后添加您想说的内容。\n例如：`/gemini 约翰·列侬是谁？`"), parse_mode="MarkdownV2")
+        await bot.reply_to(message, escape(gemini.get_message("gemini_usage_tip", user_id)), parse_mode="MarkdownV2")
         return
     await gemini.gemini_stream(bot, message, m, model_1)
 
 async def gemini_pro_stream_handler(message: Message, bot: TeleBot) -> None:
+    user_id = message.from_user.id
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
-        await bot.reply_to(message, escape("请在 /gemini_pro 后添加您想说的内容。\n例如：`/gemini_pro 约翰·列侬是谁？`"), parse_mode="MarkdownV2")
+        await bot.reply_to(message, escape(gemini.get_message("gemini_pro_usage_tip", user_id)), parse_mode="MarkdownV2")
         return
     await gemini.gemini_stream(bot, message, m, model_2)
 
 async def clear(message: Message, bot: TeleBot) -> None:
+    user_id = message.from_user.id
     # Check if the chat is already in gemini_chat_dict.
-    if (str(message.from_user.id) in gemini_chat_dict):
-        del gemini_chat_dict[str(message.from_user.id)]
-    if (str(message.from_user.id) in gemini_pro_chat_dict):
-        del gemini_pro_chat_dict[str(message.from_user.id)]
-    if (str(message.from_user.id) in gemini_draw_dict):
-        del gemini_draw_dict[str(message.from_user.id)]
-    await bot.reply_to(message, "您的历史记录已被清除")
+    if (str(user_id) in gemini_chat_dict):
+        del gemini_chat_dict[str(user_id)]
+    if (str(user_id) in gemini_pro_chat_dict):
+        del gemini_pro_chat_dict[str(user_id)]
+    if (str(user_id) in gemini_draw_dict):
+        del gemini_draw_dict[str(user_id)]
+    await bot.reply_to(message, gemini.get_message("history_cleared", user_id))
 
 async def switch(message: Message, bot: TeleBot) -> None:
+    user_id = message.from_user.id
     if message.chat.type != "private":
-        await bot.reply_to( message , "此命令仅适用于私聊！")
+        await bot.reply_to(message, gemini.get_message("private_chat_only", user_id))
         return
     # Check if the chat is already in default_model_dict.
-    if str(message.from_user.id) not in default_model_dict:
-        default_model_dict[str(message.from_user.id)] = False
-        await bot.reply_to( message , "您现在正在使用 "+model_2)
+    if str(user_id) not in default_model_dict:
+        default_model_dict[str(user_id)] = False
+        await bot.reply_to(message, gemini.get_message("using_model", user_id) + model_2)
         return
-    if default_model_dict[str(message.from_user.id)] == True:
-        default_model_dict[str(message.from_user.id)] = False
-        await bot.reply_to( message , "您现在正在使用 "+model_2)
+    if default_model_dict[str(user_id)] == True:
+        default_model_dict[str(user_id)] = False
+        await bot.reply_to(message, gemini.get_message("using_model", user_id) + model_2)
     else:
-        default_model_dict[str(message.from_user.id)] = True
-        await bot.reply_to( message , "您现在正在使用 "+model_1)
+        default_model_dict[str(user_id)] = True
+        await bot.reply_to(message, gemini.get_message("using_model", user_id) + model_1)
+
+async def language_switch(message: Message, bot: TeleBot) -> None:
+    user_id = message.from_user.id
+    user_id_str = str(user_id)
+    
+    # 切换语言
+    current_lang = gemini.get_user_language(user_id)
+    new_lang = "en" if current_lang == "zh" else "zh"
+    language_dict[user_id_str] = new_lang
+    
+    # 发送语言已切换的消息
+    await bot.reply_to(message, gemini.get_message("language_switched", user_id))
+    
+    # 发送语言使用提示
+    await bot.reply_to(message, gemini.get_message("language_usage_tip", user_id))
 
 async def gemini_private_handler(message: Message, bot: TeleBot) -> None:
+    user_id = message.from_user.id
     m = message.text.strip()
-    if str(message.from_user.id) not in default_model_dict:
-        default_model_dict[str(message.from_user.id)] = True
-        await gemini.gemini_stream(bot,message,m,model_1)
+    if str(user_id) not in default_model_dict:
+        default_model_dict[str(user_id)] = True
+        await gemini.gemini_stream(bot, message, m, model_1)
     else:
-        if default_model_dict[str(message.from_user.id)]:
-            await gemini.gemini_stream(bot,message,m,model_1)
+        if default_model_dict[str(user_id)]:
+            await gemini.gemini_stream(bot, message, m, model_1)
         else:
-            await gemini.gemini_stream(bot,message,m,model_2)
+            await gemini.gemini_stream(bot, message, m, model_2)
 
 async def gemini_photo_handler(message: Message, bot: TeleBot) -> None:
+    user_id = message.from_user.id
     if message.chat.type != "private":
         s = message.caption or ""
         if not s or not (s.startswith("/gemini")):
@@ -86,7 +106,7 @@ async def gemini_photo_handler(message: Message, bot: TeleBot) -> None:
             photo_file = await bot.download_file(file_path.file_path)
         except Exception:
             traceback.print_exc()
-            await bot.reply_to(message, error_info)
+            await bot.reply_to(message, gemini.get_message("error_info", user_id))
             return
         await gemini.gemini_edit(bot, message, m, photo_file)
     else:
@@ -97,13 +117,14 @@ async def gemini_photo_handler(message: Message, bot: TeleBot) -> None:
             photo_file = await bot.download_file(file_path.file_path)
         except Exception:
             traceback.print_exc()
-            await bot.reply_to(message, error_info)
+            await bot.reply_to(message, gemini.get_message("error_info", user_id))
             return
         await gemini.gemini_edit(bot, message, m, photo_file)
 
 async def gemini_edit_handler(message: Message, bot: TeleBot) -> None:
+    user_id = message.from_user.id
     if not message.photo:
-        await bot.reply_to(message, "请发送一张照片")
+        await bot.reply_to(message, gemini.get_message("send_photo_request", user_id))
         return
     s = message.caption or ""
     try:
@@ -117,14 +138,15 @@ async def gemini_edit_handler(message: Message, bot: TeleBot) -> None:
     await gemini.gemini_edit(bot, message, m, photo_file)
 
 async def draw_handler(message: Message, bot: TeleBot) -> None:
+    user_id = message.from_user.id
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
-        await bot.reply_to(message, escape("请在 /draw 后添加您想绘制的内容。\n例如：`/draw 给我画一只猫。`"), parse_mode="MarkdownV2")
+        await bot.reply_to(message, escape(gemini.get_message("draw_usage_tip", user_id)), parse_mode="MarkdownV2")
         return
     
     # reply to the message first, then delete the "drawing..." message
-    drawing_msg = await bot.reply_to(message, "正在绘制...")
+    drawing_msg = await bot.reply_to(message, gemini.get_message("drawing", user_id))
     try:
         await gemini.gemini_draw(bot, message, m)
     finally:
