@@ -23,7 +23,7 @@ async def main():
     # 设置命令，使用默认语言（中文）
     lang = conf["default_language"]
     await bot.set_my_commands(
-    commands=[
+commands=[
         telebot.types.BotCommand("start", command_descriptions[lang]["start"]),
         telebot.types.BotCommand("gemini", command_descriptions[lang]["gemini"]),
         telebot.types.BotCommand("gemini_pro", command_descriptions[lang]["gemini_pro"]),
