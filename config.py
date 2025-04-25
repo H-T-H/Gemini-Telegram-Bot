@@ -3,7 +3,7 @@ conf = {
     "error_info":           "⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !",
     "before_generate_info": "🤖Generating🤖",
     "download_pic_notify":  "🤖Loading picture🤖",
-    "model_1":              "gemini-2.0-flash-exp",
+    "model_1":              "gemini-2.5-flash-preview-04-17",
     "model_2":              "gemini-2.5-pro-exp-03-25",
     "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
 }
