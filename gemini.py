@@ -16,6 +16,7 @@ default_model_dict = {}
 
 model_1                 =       conf["model_1"]
 model_2                 =       conf["model_2"]
+model_3                 =       conf["model_3"]
 error_info              =       conf["error_info"]
 before_generate_info    =       conf["before_generate_info"]
 download_pic_notify     =       conf["download_pic_notify"]
@@ -108,7 +109,7 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
     image = Image.open(io.BytesIO(photo_file))
     try:
         response = await client.aio.models.generate_content(
-        model=model_1,
+        model=model_3,
         contents=[m, image],
         config=generation_config
     )
@@ -125,7 +126,7 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
     chat_dict = gemini_draw_dict
     if str(message.from_user.id) not in chat_dict:
         chat = client.aio.chats.create(
-            model=model_1,
+            model=model_3,
             config=generation_config,
         )
         chat_dict[str(message.from_user.id)] = chat
