@@ -1,4 +1,6 @@
 import google.generativeai as genai
+# Attempt to import specific types directly
+from google.generativeai.types import SafetySetting, GenerateContentConfig, HarmCategory, BlockThreshold
 
 # 中英文消息配置
 messages = {
@@ -89,29 +91,29 @@ conf = {
 }
 
 safety_settings = [
-    genai.SafetySetting(
-        category="HARM_CATEGORY_HARASSMENT",
-        threshold="BLOCK_NONE",
+    SafetySetting(
+        category=HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold=BlockThreshold.BLOCK_NONE,
     ),
-    genai.SafetySetting(
-        category="HARM_CATEGORY_HATE_SPEECH",
-        threshold="BLOCK_NONE",
+    SafetySetting(
+        category=HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold=BlockThreshold.BLOCK_NONE,
     ),
-    genai.SafetySetting(
-        category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-        threshold="BLOCK_NONE",
+    SafetySetting(
+        category=HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold=BlockThreshold.BLOCK_NONE,
     ),
-    genai.SafetySetting(
-        category="HARM_CATEGORY_DANGEROUS_CONTENT",
-        threshold="BLOCK_NONE",
+    SafetySetting(
+        category=HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold=BlockThreshold.BLOCK_NONE,
     ),
-    genai.SafetySetting(
+    SafetySetting(
         category="HARM_CATEGORY_CIVIC_INTEGRITY",
-        threshold="BLOCK_NONE",
+        threshold=BlockThreshold.BLOCK_NONE,
     )
 ]
 
-generation_config = genai.GenerateContentConfig(
+generation_config = GenerateContentConfig(
     response_modalities=['Text'],
     safety_settings=safety_settings,
 )
