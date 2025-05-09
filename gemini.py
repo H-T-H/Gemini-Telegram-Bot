@@ -120,12 +120,12 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
     image = Image.open(io.BytesIO(photo_file))
     try:
         response = await client.aio.models.generate_content(
-        model=model_1,
+        model=model_2,
         contents=[m, image],
         config=generation_config
     )
     except Exception as e:
-        await bot.send_message(message.chat.id, e.str())
+        await bot.send_message(message.chat.id, f"Error in gemini_edit: {str(e)}")
     for part in response.candidates[0].content.parts:
         if part.text is not None:
             await bot.send_message(message.chat.id, escape(part.text), parse_mode="MarkdownV2")
