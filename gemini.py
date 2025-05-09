@@ -9,6 +9,7 @@ from md2tgmd import escape
 from telebot import TeleBot
 from config import conf, generation_config, messages, safety_settings # Ensure safety_settings is imported
 import google.generativeai as genai # Use alias for consistency
+from typing import Optional
 
 # --- System Prompt Management ---
 SYSTEM_PROMPT_FILE = "system_prompt.txt"
@@ -28,7 +29,7 @@ def load_system_prompt():
         current_system_prompt = None
     print(f"System prompt loaded: {current_system_prompt}")
 
-def save_system_prompt(text: str | None):
+def save_system_prompt(text: Optional[str]):
     """Saves the system prompt to file, updates current_system_prompt, and clears chat dicts."""
     global current_system_prompt
     
