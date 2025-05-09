@@ -512,29 +512,38 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                 break
         
         # 如果是时间相关查询或聊天会话不支持搜索功能但查询可能需要搜索
-        if is_time_query or (not chat_supports_search and needs_search(m)):
-            print(f"需要执行搜索。原因: {'时间相关查询' if is_time_query else '聊天会话不支持搜索功能但查询可能需要搜索'}")
-            print(f"尝试先进行单独搜索: {m[:100]}...")
-            try:
-                # 不使用 bot.reply_to 避免发送额外消息
-                # 单独进行搜索
-                search_result = await perform_standalone_search(m)
-                if search_result:
-                    # 将搜索结果添加到原始查询中，并强调这是最新信息
-                    search_enhanced_message = f"{m}\n\n以下是最新的相关搜索结果 (请使用这些最新信息回答上面的问题，不要只依赖你的训练数据):\n\n{search_result}\n\n请根据以上最新信息回答问题，如果涉及日期时间，请明确指出当前日期时间。"
-                    print(f"已将搜索结果添加到用户查询中，增强消息长度: {len(search_enhanced_message)} 字符")
-                else:
-                    # 如果搜索失败但是时间相关查询，提示模型仍需要提供最新信息
+        if is_time_query or (not chat_supports_search and needs_search(m, user_id)):
+            # 如果用户已禁用搜索功能，但是时间相关查询，则提供一条提示信息
+            if not user_search_enabled and is_time_query:
+                print(f"用户已禁用搜索功能，但这是时间相关查询，添加提示消息")
+                search_enhanced_message = f"{m}\n\n注意：您已禁用联网搜索功能，但这是一个时间相关查询。如果需要最新信息，请使用 /search 命令启用联网搜索。"
+            # 如果用户已禁用搜索功能且不是时间相关查询，则不执行搜索
+            elif not user_search_enabled:
+                print(f"用户 {user_id} 已禁用搜索功能，跳过搜索")
+            # 否则正常执行搜索
+            else:
+                print(f"需要执行搜索。原因: {'时间相关查询' if is_time_query else '聊天会话不支持搜索功能但查询可能需要搜索'}")
+                print(f"尝试先进行单独搜索: {m[:100]}...")
+                try:
+                    # 不使用 bot.reply_to 避免发送额外消息
+                    # 单独进行搜索
+                    search_result = await perform_standalone_search(m)
+                    if search_result:
+                        # 将搜索结果添加到原始查询中，并强调这是最新信息
+                        search_enhanced_message = f"{m}\n\n以下是最新的相关搜索结果 (请使用这些最新信息回答上面的问题，不要只依赖你的训练数据):\n\n{search_result}\n\n请根据以上最新信息回答问题，如果涉及日期时间，请明确指出当前日期时间。"
+                        print(f"已将搜索结果添加到用户查询中，增强消息长度: {len(search_enhanced_message)} 字符")
+                    else:
+                        # 如果搜索失败但是时间相关查询，提示模型仍需要提供最新信息
+                        if is_time_query:
+                            search_enhanced_message = f"{m}\n\n请注意：这是一个与时间相关的查询，需要最新信息。搜索功能未能返回结果，但请尽量提供当前的准确信息。如果涉及日期或时间，请明确指出今天的日期和当前时间。"
+                            print("搜索未返回结果，但添加了时间相关提示")
+                except Exception as e_search:
+                    print(f"单独搜索失败: {e_search}，继续使用原始查询")
+                    # 如果搜索失败但是时间相关查询，至少提示模型需要提供最新信息
                     if is_time_query:
-                        search_enhanced_message = f"{m}\n\n请注意：这是一个与时间相关的查询，需要最新信息。搜索功能未能返回结果，但请尽量提供当前的准确信息。如果涉及日期或时间，请明确指出今天的日期和当前时间。"
-                        print("搜索未返回结果，但添加了时间相关提示")
-            except Exception as e_search:
-                print(f"单独搜索失败: {e_search}，继续使用原始查询")
-                # 如果搜索失败但是时间相关查询，至少提示模型需要提供最新信息
-                if is_time_query:
-                    search_enhanced_message = f"{m}\n\n请注意：这是一个与时间相关的查询，需要最新信息。尽管搜索功能遇到问题，但请尽量提供当前的准确信息。如果涉及日期或时间，请明确指出今天的日期和当前时间。"
-                    print("搜索过程出错，但添加了时间相关提示")
-                
+                        search_enhanced_message = f"{m}\n\n请注意：这是一个与时间相关的查询，需要最新信息。尽管搜索功能遇到问题，但请尽量提供当前的准确信息。如果涉及日期或时间，请明确指出今天的日期和当前时间。"
+                        print("搜索过程出错，但添加了时间相关提示")
+        
         # 主循环处理消息和函数调用
         current_message = search_enhanced_message  # 使用可能已增强的消息
         
@@ -1129,10 +1138,36 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
                 print(f"gemini_draw: 回复最终错误消息失败: {e_final_error_reply}")
 
 # 判断用户查询是否可能需要搜索
-def needs_search(query: str) -> bool:
+def needs_search(query: str, user_id=None) -> bool:
     """判断用户查询是否可能需要搜索实时信息。
     这个简单的规则集试图识别可能需要最新信息的查询。
+    
+    Args:
+        query: 用户的查询文本
+        user_id: 用户ID，用于检查用户特定的搜索设置
     """
+    # 检查全局搜索设置
+    if not conf.get("enable_search", True):
+        print("全局搜索功能已禁用")
+        return False
+    
+    # 如果提供了用户ID，检查用户特定的搜索设置
+    if user_id is not None:
+        # 导入用户搜索设置
+        from handlers import user_search_settings
+        # 检查用户是否已禁用搜索
+        user_search_enabled = user_search_settings.get(str(user_id), True)  # 默认为启用
+        if not user_search_enabled:
+            print(f"用户 {user_id} 已禁用搜索功能")
+            return False
+    
+    # 检查是否有强制搜索关键词
+    force_search_keywords = conf.get("force_search_keywords", [])
+    for keyword in force_search_keywords:
+        if keyword.lower() in query.lower():
+            print(f"查询'{query}'包含强制搜索关键词(来自配置): '{keyword}'，必须搜索")
+            return True
+    
     # 转换为小写以便于匹配
     query_lower = query.lower()
     
@@ -1396,6 +1431,23 @@ async def test_search_capability(bot: TeleBot, message: Message):
 
         sent_message = await bot.reply_to(message, "正在测试 Google 搜索功能，请稍候...")
         
+        # 0. 首先检查搜索配置状态
+        from handlers import user_search_settings
+        global_search_enabled = conf.get("enable_search", True)
+        user_search_enabled = user_search_settings.get(user_id_str, True)
+        
+        config_status = f"搜索配置状态:\n"
+        config_status += f"- 全局搜索启用: {'✅ 是' if global_search_enabled else '❌ 否'}\n"
+        config_status += f"- 用户搜索启用: {'✅ 是' if user_search_enabled else '❌ 否'}\n"
+        config_status += f"- 搜索最大结果数: {conf.get('search_max_results', 5)}\n"
+        config_status += f"- 搜索重试次数: {conf.get('search_retry_count', 2)}\n"
+        
+        await bot.edit_message_text(
+            f"{config_status}\n正在测试组件...", 
+            chat_id=sent_message.chat.id, 
+            message_id=sent_message.message_id
+        )
+        
         # 准备一个明确需要搜索的简单查询
         test_query = "今天是几月几号星期几"
         
@@ -1405,7 +1457,7 @@ async def test_search_capability(bot: TeleBot, message: Message):
             google_search = types.GoogleSearch()
             search_tool = types.Tool(google_search=google_search)
             await bot.edit_message_text(
-                "步骤 1/4: ✅ 成功创建搜索工具对象", 
+                f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象", 
                 chat_id=sent_message.chat.id, 
                 message_id=sent_message.message_id
             )
@@ -1413,7 +1465,7 @@ async def test_search_capability(bot: TeleBot, message: Message):
         except Exception as e1:
             error_msg = f"步骤 1/4: ❌ 创建搜索工具对象失败: {str(e1)}"
             await bot.edit_message_text(
-                error_msg, 
+                f"{config_status}\n{error_msg}", 
                 chat_id=sent_message.chat.id, 
                 message_id=sent_message.message_id
             )
@@ -1462,13 +1514,13 @@ async def test_search_capability(bot: TeleBot, message: Message):
             
             if any("✅" in result for result in model_support_results):
                 await bot.edit_message_text(
-                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n" + "\n".join(model_support_results), 
+                    f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n" + "\n".join(model_support_results), 
                     chat_id=sent_message.chat.id, 
                     message_id=sent_message.message_id
                 )
             else:
                 await bot.edit_message_text(
-                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ❌ 没有模型支持搜索工具\n" + "\n".join(model_support_results), 
+                    f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ❌ 没有模型支持搜索工具\n" + "\n".join(model_support_results), 
                     chat_id=sent_message.chat.id, 
                     message_id=sent_message.message_id
                 )
@@ -1477,7 +1529,7 @@ async def test_search_capability(bot: TeleBot, message: Message):
         except Exception as e2:
             error_msg = f"步骤 2/4: ❌ 测试模型支持失败: {str(e2)}"
             await bot.edit_message_text(
-                f"步骤 1/4: ✅ 成功创建搜索工具对象\n{error_msg}", 
+                f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象\n{error_msg}", 
                 chat_id=sent_message.chat.id, 
                 message_id=sent_message.message_id
             )
@@ -1488,7 +1540,7 @@ async def test_search_capability(bot: TeleBot, message: Message):
         try:
             print(f"\n===== 测试 #3: 执行实际搜索 '{test_query}' =====")
             await bot.edit_message_text(
-                f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: 🔄 正在执行实际搜索...", 
+                f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: 🔄 正在执行实际搜索...", 
                 chat_id=sent_message.chat.id, 
                 message_id=sent_message.message_id
             )
@@ -1545,7 +1597,7 @@ async def test_search_capability(bot: TeleBot, message: Message):
             
             if search_used:
                 await bot.edit_message_text(
-                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n\n搜索结果摘要:\n{response_text[:300]}...", 
+                    f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n\n搜索结果摘要:\n{response_text[:300]}...", 
                     chat_id=sent_message.chat.id, 
                     message_id=sent_message.message_id
                 )
@@ -1553,7 +1605,7 @@ async def test_search_capability(bot: TeleBot, message: Message):
                 print(f"响应摘要: {response_text[:200]}...")
             else:
                 await bot.edit_message_text(
-                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ⚠️ 搜索执行了但可能未使用搜索工具\n\n响应摘要:\n{response_text[:300]}...", 
+                    f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ⚠️ 搜索执行了但可能未使用搜索工具\n\n响应摘要:\n{response_text[:300]}...", 
                     chat_id=sent_message.chat.id, 
                     message_id=sent_message.message_id
                 )
@@ -1562,7 +1614,7 @@ async def test_search_capability(bot: TeleBot, message: Message):
         except Exception as e3:
             error_msg = f"步骤 3/4: ❌ 执行实际搜索失败: {str(e3)}"
             await bot.edit_message_text(
-                f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n{error_msg}", 
+                f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n{error_msg}", 
                 chat_id=sent_message.chat.id, 
                 message_id=sent_message.message_id
             )
@@ -1573,7 +1625,7 @@ async def test_search_capability(bot: TeleBot, message: Message):
         try:
             print("\n===== 测试 #4: 测试 perform_standalone_search 函数 =====")
             await bot.edit_message_text(
-                f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n步骤 4/4: 🔄 测试 perform_standalone_search 函数...", 
+                f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n步骤 4/4: 🔄 测试 perform_standalone_search 函数...", 
                 chat_id=sent_message.chat.id, 
                 message_id=sent_message.message_id
             )
@@ -1583,45 +1635,50 @@ async def test_search_capability(bot: TeleBot, message: Message):
             
             if search_result and len(search_result) > 50:  # 确保结果不是错误消息
                 final_message = (
-                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n"
+                    f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象\n"
                     f"步骤 2/4: ✅ 至少一个模型支持搜索工具\n"
                     f"步骤 3/4: ✅ 成功执行实际搜索\n"
-                    f"步骤 4/4: ✅ perform_standalone_search 函数工作正常\n\n"
-                    f"搜索测试完成! Google 搜索功能正常工作。\n\n"
-                    f"搜索结果摘要:\n{search_result[:300]}..."
+                    f"步骤 4/4: ✅ perform_standalone_search 函数成功\n\n"
+                    f"🎉 所有测试通过！Google 搜索功能正常工作。\n\n"
+                    f"搜索结果示例:\n{search_result[:200]}...\n\n"
+                    f"📝 使用提示:\n"
+                    f"- 使用 /search 命令可以启用或禁用搜索功能\n"
+                    f"- 涉及时间、日期、当前事件的问题会自动触发搜索\n"
+                    f"- 包含 '最新'、'现在'、'今天' 等关键词的问题会优先使用搜索\n"
                 )
                 await bot.edit_message_text(
                     final_message, 
                     chat_id=sent_message.chat.id, 
                     message_id=sent_message.message_id
                 )
-                print(f"✅ perform_standalone_search 函数工作正常")
-                print(f"结果摘要: {search_result[:200]}...")
+                print("✅ 所有测试通过")
             else:
                 error_details = search_result if search_result else "未返回有效结果"
                 await bot.edit_message_text(
-                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n步骤 4/4: ❌ perform_standalone_search 函数失败\n\n错误: {error_details}", 
+                    f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n步骤 4/4: ❌ perform_standalone_search 函数失败\n\n错误: {error_details}\n\n"
+                    f"📝 搜索功能可能部分可用。您可以使用 /search 命令切换搜索功能。", 
                     chat_id=sent_message.chat.id, 
                     message_id=sent_message.message_id
                 )
-                print(f"❌ perform_standalone_search 函数失败: {error_details}")
+                print(f"❌ perform_standalone_search 测试失败: {error_details}")
         except Exception as e4:
             error_msg = f"步骤 4/4: ❌ 测试 perform_standalone_search 函数失败: {str(e4)}"
             await bot.edit_message_text(
-                f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n{error_msg}", 
+                f"{config_status}\n步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n{error_msg}\n\n"
+                f"📝 搜索功能可能部分可用。您可以使用 /search 命令切换搜索功能。", 
                 chat_id=sent_message.chat.id, 
                 message_id=sent_message.message_id
             )
             print(f"❌ 错误: {error_msg}")
-            
     except Exception as e:
-        error_text = f"测试 Google 搜索功能时发生错误: {str(e)}"
-        print(error_text)
+        traceback.print_exc()
+        error_msg = f"测试过程中发生错误: {str(e)}"
         if sent_message:
             await bot.edit_message_text(
-                error_text, 
+                f"{error_msg}\n\n您可以使用 /search 命令手动切换搜索功能状态。", 
                 chat_id=sent_message.chat.id, 
                 message_id=sent_message.message_id
             )
         else:
-            await bot.reply_to(message, error_text)
+            await bot.reply_to(message, error_msg)
+        print(f"❌ 全局错误: {error_msg}")
