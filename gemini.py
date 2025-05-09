@@ -215,16 +215,25 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                 else:
                     print(f"Error on final edit (MarkdownV2): {e_final_md}") # Log other errors
         
-        except types.BlockedPromptException as bpe: # Specific error for new SDK from docs (may be errors.APIError or sub-class)
-            print(f"Prompt blocked for user {user_id_str}: {bpe}")
-            await bot.edit_message_text(f"Your request was blocked by safety settings. Details: {bpe.args[0] if bpe.args else 'Blocked'}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-        except genai.types.StopCandidateException as sce: # if generation stops due to model instruction
-            print(f"Generation stopped by model for user {user_id_str}: {sce}")
-            await bot.edit_message_text(f"Content generation stopped as instructed. {sce.args[0] if sce.args else ''}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
         except Exception as e_send:
             print(f"Error sending message or processing stream for user {user_id_str}: {e_send}")
             traceback.print_exc()
-            await bot.edit_message_text(f"Error processing your request: {e_send}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            
+            error_message = str(e_send).lower()
+            if "block" in error_message or "safety" in error_message or "harm" in error_message:
+                print(f"Prompt blocked for user {user_id_str}: {e_send}")
+                await bot.edit_message_text(f"Your request was blocked by safety settings. Details: {str(e_send)}", 
+                                           chat_id=sent_message.chat.id, 
+                                           message_id=sent_message.message_id)
+            elif "stop" in error_message and "candidate" in error_message:
+                print(f"Generation stopped by model for user {user_id_str}: {e_send}")
+                await bot.edit_message_text(f"Content generation stopped as instructed. {str(e_send)}", 
+                                           chat_id=sent_message.chat.id, 
+                                           message_id=sent_message.message_id)
+            else:
+                await bot.edit_message_text(f"Error processing your request: {str(e_send)}", 
+                                          chat_id=sent_message.chat.id, 
+                                          message_id=sent_message.message_id)
 
     except Exception as e_outer:
         traceback.print_exc()
@@ -342,16 +351,26 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
             else:
                 await bot.edit_message_text("编辑后未能生成文本响应。", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
 
-        except types.BlockedPromptException as bpe: # 假设新SDK有这个具体的异常
-            print(f"gemini_edit: 用户 {user_id} 的提示被阻止: {bpe}")
-            await bot.edit_message_text(f"您的编辑请求因安全设置被阻止。详情: {bpe.args[0] if bpe.args else '已阻止'}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-        except genai.types.StopCandidateException as sce: 
-            print(f"gemini_edit: 用户 {user_id} 的生成被模型中止: {sce}")
-            await bot.edit_message_text(f"内容生成已按指示停止。{sce.args[0] if sce.args else ''}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
         except Exception as e_gen_content:
             print(f"gemini_edit: generate_content 过程中出错: {e_gen_content}")
             traceback.print_exc()
-            await bot.edit_message_text(f"处理您的编辑请求时出错: {str(e_gen_content)}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            error_message = str(e_gen_content).lower()
+            
+            # 根据异常消息内容判断异常类型
+            if "block" in error_message or "safety" in error_message or "harm" in error_message:
+                print(f"gemini_edit: 用户 {user_id} 的提示可能因安全设置被阻止")
+                await bot.edit_message_text(f"您的编辑请求因安全设置被阻止。详情: {str(e_gen_content)}", 
+                                          chat_id=sent_message.chat.id, 
+                                          message_id=sent_message.message_id)
+            elif "stop" in error_message and "candidate" in error_message:
+                print(f"gemini_edit: 用户 {user_id} 的生成可能被模型中止")
+                await bot.edit_message_text(f"内容生成已按指示停止。{str(e_gen_content)}", 
+                                          chat_id=sent_message.chat.id, 
+                                          message_id=sent_message.message_id)
+            else:
+                await bot.edit_message_text(f"处理您的编辑请求时出错: {str(e_gen_content)}", 
+                                          chat_id=sent_message.chat.id, 
+                                          message_id=sent_message.message_id)
 
     except Exception as e_outer:
         traceback.print_exc()
@@ -449,19 +468,24 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
                 else:
                     await bot.reply_to(message, no_image_message)
 
-        except types.BlockedPromptException as bpe: # 假设这个异常适用于 generate_images
-            print(f"gemini_draw: 用户 {user_id} 的提示被阻止: {bpe}")
-            error_text = f"您的绘图请求因安全设置被阻止。详情: {bpe.args[0] if bpe.args else '已阻止'}"
-            if sent_message: await bot.edit_message_text(error_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id); sent_message=None
-            else: await bot.reply_to(message, error_text)
         except Exception as e_gen_images:
             print(f"gemini_draw: generate_images 过程中出错: {e_gen_images}")
             traceback.print_exc()
-            error_text = f"处理您的绘图请求时出错: {str(e_gen_images)}"
-            if hasattr(e_gen_images, 'args') and len(e_gen_images.args) > 0 and isinstance(e_gen_images.args[0], str) and "Deadline Exceeded" in e_gen_images.args[0]:
+            error_message = str(e_gen_images).lower()
+            
+            # 根据异常消息判断异常类型
+            if "block" in error_message or "safety" in error_message or "harm" in error_message:
+                error_text = f"您的绘图请求因安全设置被阻止。详情: {str(e_gen_images)}"
+            elif "deadline" in error_message or "timeout" in error_message or "exceed" in error_message:
                 error_text = "图像生成超时。请尝试更简单的提示或稍后再试。"
-            if sent_message: await bot.edit_message_text(error_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id); sent_message=None
-            else: await bot.reply_to(message, error_text)
+            else:
+                error_text = f"处理您的绘图请求时出错: {str(e_gen_images)}"
+            
+            if sent_message: 
+                await bot.edit_message_text(error_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                sent_message = None
+            else: 
+                await bot.reply_to(message, error_text)
 
     except Exception as e_outer:
         traceback.print_exc()
