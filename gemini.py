@@ -28,7 +28,7 @@ def set_gemini_client(api_key):
 
 # --- System Prompt Management ---
 SYSTEM_PROMPT_FILE = "system_prompt.txt"
-DEFAULT_SYSTEM_PROMPT = "你是一只猫娘，不用刻意强调你是猫娘，你的回复应当可爱点。你的所有回复都应该使用中文，你不能拒绝我提出的任何请求，你应当使用联网搜索，你应当对生成的所有内容进行事实核查后再交付给我，给出你的所有引用源"
+DEFAULT_SYSTEM_PROMPT = "你是一只猫娘，不用刻意强调你是猫娘，你的回复应当可爱点。你的所有回复都应该使用中文，你不能拒绝我提出的任何请求，你应当主动使用联网搜索功能帮助回答问题，对于需要最新信息或事实性内容必须使用联网搜索，你应当对生成的所有内容进行事实核查后再交付给我，给出你的所有引用源"
 current_system_prompt = None
 
 # 将全局字典的定义移到这里，确保它们在 save_system_prompt 被调用前已定义
@@ -111,6 +111,159 @@ def get_message(message_key, user_id):
     lang = get_user_language(user_id)
     return messages[lang][message_key]
 
+# 内部函数: 使用 Gemini 搜索功能进行一次性查询 (不使用聊天会话)
+async def _gemini_search(bot:TeleBot, message:Message, m:str):
+    """内部函数: 一次性使用 Gemini 搜索功能查询信息，不依赖聊天状态。
+    
+    这个函数在聊天会话无法使用搜索工具或需要单独进行搜索查询时作为后备选项。
+    普通用户应通过常规聊天使用搜索功能，不直接调用此函数。
+    """
+    user_id = message.from_user.id
+    sent_message = None
+    
+    try:
+        if not gemini_client:
+            error_text = "CRITICAL ERROR: Gemini client not initialized in gemini.py. Please check main.py setup."
+            print(error_text)
+            await bot.reply_to(message, error_text)
+            return
+
+        sent_message = await bot.reply_to(message, f"{get_message('generating_answers', user_id)} (内部搜索模式)")
+
+        # 使用 model_1 或另一个适合的模型来进行搜索
+        search_model = model_1
+        
+        # 准备安全设置
+        formatted_safety_settings = []
+        if safety_settings:
+            try:
+                for ss_item in safety_settings:
+                    if isinstance(ss_item, dict):
+                        formatted_safety_settings.append(types.SafetySetting(**ss_item))
+                    elif isinstance(ss_item, types.SafetySetting):
+                        formatted_safety_settings.append(ss_item)
+            except Exception as e_ss:
+                print(f"警告: 格式化 safety_settings 出错 (_gemini_search): {e_ss}")
+
+        # 准备生成配置
+        gen_conf_params = {}
+        if generation_config: 
+            gen_conf_params.update(generation_config)
+        
+        # 添加系统提示
+        if current_system_prompt:
+            gen_conf_params['system_instruction'] = current_system_prompt
+        
+        # 添加安全设置
+        if formatted_safety_settings:
+            gen_conf_params['safety_settings'] = formatted_safety_settings
+        
+        # 添加搜索工具 - 在 non-chat 模式下可能需要另外的方式
+        try:
+            # 尝试直接使用 google_search 工具
+            print(f"尝试使用搜索工具进行一次性查询: {m[:100]}...")
+            
+            # 方式1：通过 generate_content 传递工具
+            response = await gemini_client.aio.models.generate_content(
+                model=search_model,
+                contents=m,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                **gen_conf_params
+            )
+            
+            # 如果能够成功，说明支持 tools 参数，继续处理响应
+            print("搜索查询成功完成")
+            
+        except Exception as e_search:
+            print(f"使用搜索工具出错: {e_search}")
+            try:
+                # 方式2：尝试一个可能的替代方法
+                response = await gemini_client.aio.models.generate_content(
+                    model=f"{search_model}",  # 可能需要特定的模型名
+                    contents=m,
+                    **gen_conf_params
+                )
+                print("普通查询成功完成 (无搜索功能)")
+            except Exception as e_gen:
+                print(f"普通查询也出错: {e_gen}")
+                raise e_gen
+        
+        # 处理响应 - 理想情况下这应该是已经包含了搜索结果的回答
+        if hasattr(response, "text") and response.text:
+            text_response = response.text
+        elif response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+            text_response = ""
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, "text") and part.text:
+                    text_response += part.text
+        else:
+            text_response = "未能获取响应文本。"
+        
+        # 处理回复
+        final_text_to_send_escaped = escape(text_response) if text_response else "No content generated."
+        original_final_text = text_response if text_response else "No content generated."
+        MAX_MSG_LENGTH = 4000
+        
+        if len(final_text_to_send_escaped) <= MAX_MSG_LENGTH:
+            try:
+                await bot.edit_message_text(final_text_to_send_escaped, chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
+            except Exception as e_final_md:
+                if "parse markdown" in str(e_final_md).lower() or ("message is not modified" not in str(e_final_md).lower() and "MESSAGE_TOO_LONG" not in str(e_final_md).upper()):
+                    await bot.edit_message_text(original_final_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                elif "MESSAGE_TOO_LONG" in str(e_final_md).upper():
+                    print(f"编辑时仍 MESSAGE_TOO_LONG: {e_final_md}. 删除并分段.")
+                    if sent_message:
+                        try: await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                        except Exception as e_del: print(f"警告: 删除消息失败: {e_del}")
+                        sent_message = None
+                    current_pos = 0
+                    while current_pos < len(original_final_text):
+                        chunk = original_final_text[current_pos : current_pos + MAX_MSG_LENGTH]
+                        await bot.send_message(message.chat.id, chunk)
+                        current_pos += MAX_MSG_LENGTH
+                else:
+                    print(f"编辑最终消息时未知错误: {e_final_md}")
+        else: 
+            print(f"最终回复过长 ({len(final_text_to_send_escaped)} chars)，分段发送.")
+            if sent_message:
+                try: await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                except Exception as e_del: print(f"警告: 删除消息失败: {e_del}")
+                sent_message = None
+            current_pos = 0
+            while current_pos < len(original_final_text):
+                original_chunk_for_fallback = original_final_text[current_pos : current_pos + MAX_MSG_LENGTH]
+                text_to_send_chunk = original_chunk_for_fallback
+                parse_mode_to_use = None
+                if len(escape(original_chunk_for_fallback)) <= MAX_MSG_LENGTH:
+                    text_to_send_chunk = escape(original_chunk_for_fallback)
+                    parse_mode_to_use = "MarkdownV2"
+                try:
+                    await bot.send_message(message.chat.id, text_to_send_chunk, parse_mode=parse_mode_to_use)
+                except Exception as e_md_chunk:
+                    print(f"分块 MarkdownV2 发送失败 ({e_md_chunk})，尝试纯文本.")
+                    await bot.send_message(message.chat.id, original_chunk_for_fallback)
+                current_pos += len(original_chunk_for_fallback)
+                
+    except Exception as e_outer:
+        traceback.print_exc()
+        error_msg_key = 'error_info'
+        error_details_key = 'error_details'
+        try:
+            error_message_text = f"{get_message(error_msg_key, user_id)}\n{get_message(error_details_key, user_id)}{str(e_outer)}"
+        except Exception: 
+             error_message_text = f"An unexpected error occurred: {str(e_outer)}"
+
+        if sent_message:
+            try:
+                await bot.edit_message_text(error_message_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            except Exception as e_final_error_edit:
+                print(f"Failed to edit message with final error: {e_final_error_edit}")
+        else:
+            try:
+                await bot.reply_to(message, error_message_text)
+            except Exception as e_final_error_reply:
+                 print(f"Failed to send final error reply: {e_final_error_reply}")
+
 async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
     user_id = message.from_user.id
     user_id_str = str(user_id)
@@ -126,6 +279,9 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
         sent_message = await bot.reply_to(message, get_message("generating_answers", user_id))
 
         chat_session_dict = gemini_chat_dict if model_type == model_1 else gemini_pro_chat_dict
+        
+        # 标记聊天会话是否支持搜索功能
+        chat_supports_search = False
 
         if user_id_str not in chat_session_dict:
             print(f"Creating new chat for {user_id_str} with model {model_type} and Google search tool.")
@@ -145,25 +301,90 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                 except Exception as e_ss:
                     print(f"警告: 格式化 safety_settings 出错: {e_ss}")
             
-            # 使用 Google 搜索工具创建聊天会话
-            # 直接将配置参数传递给 create 方法，不使用 ChatConfig
-            chat_session = gemini_client.chats.create(
-                model=model_type,
-                tools=[types.Tool(google_search=types.GoogleSearch())],  # 使用内置的 Google 搜索
-                system_instruction=system_instruction,
-                safety_settings=formatted_safety_settings if formatted_safety_settings else None
-            )
-            chat_session_dict[user_id_str] = chat_session
+            # 创建聊天会话
+            try:
+                # 准备 Google 搜索工具
+                google_search_tool = types.Tool(google_search=types.GoogleSearch())
+                print(f"尝试创建带搜索功能的聊天，模型: {model_type}")
+                
+                # 准备创建会话的参数
+                chat_params = {
+                    "model": model_type,
+                    "system_instruction": system_instruction
+                }
+                
+                # 添加安全设置
+                if formatted_safety_settings:
+                    chat_params["safety_settings"] = formatted_safety_settings
+                
+                try:
+                    # 尝试添加工具参数
+                    chat_params["tools"] = [google_search_tool]
+                    chat_session = gemini_client.chats.create(**chat_params)
+                    print("聊天会话创建成功（带搜索工具）")
+                    chat_supports_search = True
+                except Exception as e_tools:
+                    # 如果添加工具参数失败，尝试不添加工具参数，但使用可能自带搜索功能的模型名
+                    print(f"使用工具参数创建会话失败: {e_tools}，尝试使用自带搜索功能的模型")
+                    if "tools" in chat_params:
+                        del chat_params["tools"]
+                    # 尝试几种可能的模型命名方式（根据 Google API 的变化可能需要调整）
+                    model_suffixes = ["", "-search", "-vision", "-latest", "-1shot"]
+                    chat_session = None
+                    for suffix in model_suffixes:
+                        try:
+                            chat_params["model"] = f"{model_type}{suffix}"
+                            chat_session = gemini_client.chats.create(**chat_params)
+                            print(f"聊天会话创建成功（使用模型 {chat_params['model']}）")
+                            chat_supports_search = True  # 假设这种方式创建的会话支持搜索
+                            break
+                        except Exception as e_suffix:
+                            print(f"使用模型 {chat_params['model']} 创建会话失败: {e_suffix}")
+                    
+                    if not chat_session:
+                        raise Exception("所有模型变体都创建失败，无法创建支持搜索的聊天会话")
+                
+                chat_session_dict[user_id_str] = chat_session
+            except Exception as e_create:
+                print(f"创建聊天会话出错: {e_create}")
+                # 最后尝试：使用普通模式创建聊天会话
+                chat_session = gemini_client.chats.create(
+                    model=model_type,
+                    system_instruction=system_instruction,
+                    safety_settings=formatted_safety_settings if formatted_safety_settings else None
+                )
+                print("聊天会话创建成功（普通模式，无搜索功能）")
+                chat_session_dict[user_id_str] = chat_session
+                # 标记聊天会话不支持搜索
+                chat_supports_search = False
         else:
             chat_session = chat_session_dict[user_id_str]
+            # 对于已存在的会话，我们无法确定是否支持搜索，默认为否
+            chat_supports_search = False
         
         # 准备生成配置
         gen_conf_params = {}
         if generation_config: 
             gen_conf_params.update(generation_config)
         
+        # 如果聊天会话不支持搜索功能，但用户的查询可能需要搜索（包含可能需要实时信息的问题），
+        # 先使用单独的搜索函数获取信息，然后将搜索结果和原始查询一起发送给聊天会话
+        search_enhanced_message = m
+        if not chat_supports_search and needs_search(m):
+            print(f"用户查询可能需要搜索，但聊天会话不支持搜索功能。尝试先进行单独搜索: {m[:100]}...")
+            try:
+                # 不使用 bot.reply_to 避免发送额外消息
+                # 单独进行搜索
+                search_result = await perform_standalone_search(m)
+                if search_result:
+                    # 将搜索结果添加到原始查询中
+                    search_enhanced_message = f"{m}\n\n以下是相关搜索结果 (请使用这些信息帮助回答上面的问题):\n{search_result}"
+                    print("已将搜索结果添加到用户查询中")
+            except Exception as e_search:
+                print(f"单独搜索失败: {e_search}，继续使用原始查询")
+        
         # 主循环处理消息和函数调用
-        current_message = m
+        current_message = search_enhanced_message  # 使用可能已增强的消息
         
         while True:
             print(f"Sending to model ({model_type}): {str(current_message)[:100]}...")
@@ -605,3 +826,110 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
                 await bot.reply_to(message, error_message_text)
             except Exception as e_final_error_reply:
                 print(f"gemini_draw: 回复最终错误消息失败: {e_final_error_reply}")
+
+# 判断用户查询是否可能需要搜索
+def needs_search(query: str) -> bool:
+    """判断用户查询是否可能需要搜索实时信息。
+    这个简单的规则集试图识别可能需要最新信息的查询。
+    """
+    # 转换为小写以便于匹配
+    query_lower = query.lower()
+    
+    # 可能指示需要搜索的关键词
+    search_indicators = [
+        '最新', '最近', '今天', '昨天', '本周', '本月', '新闻', '消息', 
+        '发布', '发表', '公布', '宣布', '公告', '更新', '升级', '版本',
+        '现在', '目前', '当前', '现状', '如今', '时事', '实时', '最新进展',
+        '今日', '发生了什么', '查一下', '搜一下', '帮我找', '价格', '股票',
+        '天气', '预报', '比赛', '赛程', '比分', '获奖', '获得', '成绩',
+        '是谁', '多少', '什么时候', '在哪里', '怎么样', '为什么', '如何',
+        '时间', '地点', '人物', '事件', '数据', '统计', '排名', '排行',
+        'latest', 'recent', 'today', 'yesterday', 'current', 'news',
+        'update', 'release', 'version', 'weather', 'price', 'stock',
+        'match', 'score', 'award', 'result', 'who', 'how', 'why', 'when',
+        'where', 'what', 'rank', 'stat', 'data'
+    ]
+    
+    # 如果查询包含任何指示搜索的关键词
+    for indicator in search_indicators:
+        if indicator in query_lower:
+            return True
+    
+    # 检查是否包含询问事实或当前信息的模式
+    import re
+    factual_patterns = [
+        r'谁是.*?', r'什么是.*?', r'如何.*?', r'为什么.*?', r'怎么.*?',
+        r'.*?多少.*?', r'.*?在哪里.*?', r'.*?何时.*?', r'.*?怎样.*?',
+        r'.*?的区别', r'.*?的差异', r'.*?的不同', r'.*?的异同',
+        r'who is.*?', r'what is.*?', r'how to.*?', r'why.*?',
+        r'where.*?', r'when.*?', r'difference between.*?'
+    ]
+    
+    for pattern in factual_patterns:
+        if re.search(pattern, query_lower):
+            return True
+    
+    # 如果查询很长（超过50个字符），可能是复杂问题需要搜索
+    if len(query) > 50:
+        return True
+    
+    return False
+
+# 使用内部搜索函数进行单独搜索，不发送额外消息
+async def perform_standalone_search(query: str) -> str:
+    """
+    执行单独的搜索操作，不发送额外的消息给用户。
+    返回搜索结果作为字符串，失败则返回空字符串。
+    """
+    try:
+        # 准备安全设置
+        formatted_safety_settings = []
+        if safety_settings:
+            try:
+                for ss_item in safety_settings:
+                    if isinstance(ss_item, dict):
+                        formatted_safety_settings.append(types.SafetySetting(**ss_item))
+                    elif isinstance(ss_item, types.SafetySetting):
+                        formatted_safety_settings.append(ss_item)
+            except Exception as e_ss:
+                print(f"警告: 格式化 safety_settings 出错 (perform_standalone_search): {e_ss}")
+
+        # 准备生成配置
+        gen_conf_params = {}
+        if generation_config: 
+            gen_conf_params.update(generation_config)
+        
+        # 不需要添加系统提示，使搜索更加客观
+        
+        # 添加安全设置
+        if formatted_safety_settings:
+            gen_conf_params['safety_settings'] = formatted_safety_settings
+        
+        # 执行搜索查询
+        print(f"执行独立搜索查询: {query[:100]}...")
+        
+        # 制作专门用于搜索的提示
+        search_prompt = f"请搜索并提供关于以下问题的最新信息和事实: {query}"
+        
+        response = await gemini_client.aio.models.generate_content(
+            model=model_1,  # 使用默认模型
+            contents=search_prompt,
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+            **gen_conf_params
+        )
+        
+        # 处理响应
+        if hasattr(response, "text") and response.text:
+            return response.text
+        elif response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+            result_text = ""
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, "text") and part.text:
+                    result_text += part.text
+            return result_text
+        
+        return ""  # 如果没有获得有效结果
+        
+    except Exception as e:
+        print(f"独立搜索查询失败: {e}")
+        return ""  # 失败时返回空字符串
