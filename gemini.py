@@ -307,10 +307,9 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                 google_search_tool = types.Tool(google_search=types.GoogleSearch())
                 print(f"尝试创建带搜索功能的聊天，模型: {model_type}")
                 
-                # 准备创建会话的参数
+                # 准备创建会话的参数 - 移除 system_instruction 参数
                 chat_params = {
                     "model": model_type,
-                    "system_instruction": system_instruction
                 }
                 
                 # 添加安全设置
@@ -323,6 +322,18 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                     chat_session = gemini_client.chats.create(**chat_params)
                     print("聊天会话创建成功（带搜索工具）")
                     chat_supports_search = True
+                    
+                    # 如果有系统提示，作为首条消息发送
+                    if system_instruction:
+                        print("通过首条消息设置系统提示")
+                        try:
+                            # 尝试通过首条消息设置系统指令
+                            system_message = f"你是一个AI助手，请遵循以下系统指令：\n\n{system_instruction}"
+                            # 使用普通的 send_message 而不是流式的
+                            await chat_session.send_message(system_message)
+                            print("系统提示通过首条消息设置成功")
+                        except Exception as e_sys_msg:
+                            print(f"通过首条消息设置系统提示失败: {e_sys_msg}")
                 except Exception as e_tools:
                     # 如果添加工具参数失败，尝试不添加工具参数，但使用可能自带搜索功能的模型名
                     print(f"使用工具参数创建会话失败: {e_tools}，尝试使用自带搜索功能的模型")
@@ -337,6 +348,19 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                             chat_session = gemini_client.chats.create(**chat_params)
                             print(f"聊天会话创建成功（使用模型 {chat_params['model']}）")
                             chat_supports_search = True  # 假设这种方式创建的会话支持搜索
+                            
+                            # 如果有系统提示，作为首条消息发送
+                            if system_instruction:
+                                print(f"通过首条消息设置系统提示 (模型: {chat_params['model']})")
+                                try:
+                                    # 使用更标准的系统指令格式
+                                    system_message = f"你是一个AI助手，请遵循以下系统指令：\n\n{system_instruction}"
+                                    # 使用普通的 send_message 而不是流式的
+                                    await chat_session.send_message(system_message)
+                                    print("系统提示通过首条消息设置成功")
+                                except Exception as e_sys_msg:
+                                    print(f"通过首条消息设置系统提示失败: {e_sys_msg}")
+                            
                             break
                         except Exception as e_suffix:
                             print(f"使用模型 {chat_params['model']} 创建会话失败: {e_suffix}")
@@ -350,13 +374,23 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                 # 最后尝试：使用普通模式创建聊天会话
                 chat_session = gemini_client.chats.create(
                     model=model_type,
-                    system_instruction=system_instruction,
+                    # 移除 system_instruction 参数
                     safety_settings=formatted_safety_settings if formatted_safety_settings else None
                 )
                 print("聊天会话创建成功（普通模式，无搜索功能）")
                 chat_session_dict[user_id_str] = chat_session
                 # 标记聊天会话不支持搜索
                 chat_supports_search = False
+                
+                # 如果有系统提示，作为首条消息发送
+                if system_instruction:
+                    print("通过首条消息设置系统提示（普通模式）")
+                    try:
+                        # 尝试通过首条消息设置系统指令
+                        _ = chat_session.send_message(f"系统指令: {system_instruction}")
+                        print("系统提示通过首条消息设置成功")
+                    except Exception as e_sys_msg:
+                        print(f"通过首条消息设置系统提示失败: {e_sys_msg}")
         else:
             chat_session = chat_session_dict[user_id_str]
             # 对于已存在的会话，我们无法确定是否支持搜索，默认为否
