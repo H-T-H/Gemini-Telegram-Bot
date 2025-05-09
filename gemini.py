@@ -152,7 +152,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             # For the new SDK, system_instruction is part of GenerateContentConfig passed to send_message.
             # History can be passed here if needed for new chats.
             try:
-                chat_session = await gemini_client.aio.chats.create(model=model_type, history=[]) # history can be prepopulated if needed
+                chat_session = gemini_client.aio.chats.create(model=model_type, history=[]) # history can be prepopulated if needed
                 chat_session_dict[user_id_str] = chat_session
             except Exception as e_create_chat:
                 print(f"Error creating chat session for {user_id_str} with model {model_type}: {e_create_chat}")
