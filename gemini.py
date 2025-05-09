@@ -349,102 +349,113 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
     try:
         sent_message = await bot.reply_to(message, get_message("drawing", user_id))
         
-        # 尝试创建模型实例，并处理各种库版本差异
+        # 获取配置的模型名称，如果未配置 model_3，则提供一个备用值或抛出错误
+        # 这里我们假设 model_3 总是配置好的，因为用户刚刚添加了它
+        draw_model_name = conf.get("model_3", "gemini-2.0-flash-exp") # 使用 model_3
+
+        # 尝试创建模型实例
         try:
-            # 构建一个带有系统提示的模型配置
-            model_config = {
-                "model_name": model_1,
-                "generation_config": generation_config
+            model_config_params = {
+                "model_name": draw_model_name,
+                # generation_config 全局的可能为空，或者不包含 mime_type
             }
             
-            # 如果有系统提示，添加它
-            if current_system_prompt:
-                model_config["system_instruction"] = current_system_prompt
-            
-            # 如果有安全设置，添加它
+            # 如果有全局 safety_settings，添加它
             if safety_settings:
-                model_config["safety_settings"] = safety_settings
+                model_config_params["safety_settings"] = safety_settings
             
-            # 尝试创建模型
-            model = genai.GenerativeModel(**model_config)
+            # 如果有系统提示，添加它 (虽然对于绘图可能不常用)
+            if current_system_prompt:
+                model_config_params["system_instruction"] = current_system_prompt
             
+            model = genai.GenerativeModel(**model_config_params)
+            
+            # 准备生成图像的特定配置
+            image_generation_config = genai.types.GenerationConfig(
+                response_mime_type="image/png"
+            )
+
             # 尝试生成内容
             try:
+                # 确保内容是列表形式，即使只有一个文本提示
+                contents_for_draw = [m]
+
                 if hasattr(model, "generate_content_async"):
-                    response = await model.generate_content_async(m)
+                    response = await model.generate_content_async(
+                        contents=contents_for_draw,
+                        generation_config=image_generation_config # 指定输出为图像
+                    )
                 else:
-                    # 如果不支持异步API，使用同步API
-                    response = model.generate_content(m)
+                    # 同步回退 (虽然对于bot通常希望异步)
+                    response = model.generate_content(
+                        contents=contents_for_draw,
+                        generation_config=image_generation_config # 指定输出为图像
+                    )
                 
-                # 提取文本
-                text_response = ""
-                if hasattr(response, "text"):
-                    text_response = response.text
-                elif hasattr(response, "parts") and len(response.parts) > 0:
-                    for part in response.parts:
-                        if hasattr(part, "text") and part.text:
-                            text_response += part.text
-                
-                # 回复
-                if text_response:
-                    # 删除 "Drawing..." 消息
-                    if sent_message:
+                # 处理图像响应
+                if response.parts and response.parts[0].inline_data and response.parts[0].inline_data.mime_type == "image/png":
+                    image_data = response.parts[0].inline_data.data
+                    if sent_message: # 删除 "Drawing..." 消息
                         await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
                         sent_message = None
-                    
-                    # 发送长文本（分段以符合Telegram限制）
-                    while len(text_response) > 4000:
-                        try:
-                            await bot.send_message(message.chat.id, escape(text_response[:4000]), parse_mode="MarkdownV2")
-                        except Exception as md_err:
-                            if "parse markdown" in str(md_err).lower():
-                                await bot.send_message(message.chat.id, text_response[:4000])
-                            else:
-                                raise md_err
-                        text_response = text_response[4000:]
-                    
-                    if text_response:
-                        try:
-                            await bot.send_message(message.chat.id, escape(text_response), parse_mode="MarkdownV2")
-                        except Exception as md_err:
-                            if "parse markdown" in str(md_err).lower():
-                                await bot.send_message(message.chat.id, text_response)
-                            else:
-                                raise md_err
+                    await bot.send_photo(message.chat.id, photo=image_data, caption=f"🖼️: {m}")
                 else:
+                    # 如果没有有效的图像部分，则报告错误或意外的响应
+                    no_image_message = "Failed to generate image or unexpected response format."
+                    if hasattr(response, 'prompt_feedback') and response.prompt_feedback.block_reason:
+                        no_image_message += f" Reason: {response.prompt_feedback.block_reason_message or response.prompt_feedback.block_reason}"
+                    elif response.parts and response.parts[0].text: # 可能是模型返回了文本错误
+                         no_image_message += f" Model said: {response.parts[0].text}"
+                    
+                    if sent_message:
+                        await bot.edit_message_text(
+                            no_image_message,
+                            chat_id=sent_message.chat.id,
+                            message_id=sent_message.message_id
+                        )
+                    else:
+                        await bot.reply_to(message, no_image_message)
+
+            except Exception as gen_err:
+                print(f"Error generating image content: {gen_err}")
+                error_text = f"Error generating image: {str(gen_err)}"
+                if hasattr(gen_err, 'args') and len(gen_err.args) > 0 and isinstance(gen_err.args[0], str) and "Deadline Exceeded" in gen_err.args[0]:
+                    error_text = "Image generation timed out. Please try a simpler prompt or try again later."
+
+                if sent_message:
                     await bot.edit_message_text(
-                        "No content generated.",
+                        error_text,
                         chat_id=sent_message.chat.id,
                         message_id=sent_message.message_id
                     )
-                    sent_message = None
-            except Exception as gen_err:
-                print(f"Error generating content: {gen_err}")
+                else:
+                    await bot.reply_to(message, error_text)
+        
+        except Exception as model_err:
+            print(f"Error creating draw model: {model_err}")
+            if sent_message:
                 await bot.edit_message_text(
-                    f"Error generating content: {str(gen_err)}",
+                    f"Error creating draw model: {str(model_err)}",
                     chat_id=sent_message.chat.id,
                     message_id=sent_message.message_id
                 )
-                sent_message = None
-        except Exception as model_err:
-            print(f"Error creating model: {model_err}")
+            else:
+                await bot.reply_to(message, f"Error creating draw model: {str(model_err)}")
+
+    except Exception as e:
+        traceback.print_exc()
+        error_msg_key = 'error_info'
+        error_details_key = 'error_details'
+        try:
+            error_message_text = f"{get_message(error_msg_key, user_id)}\\n{get_message(error_details_key, user_id)}{str(e)}"
+        except Exception:
+             error_message_text = f"An error occurred in draw: {str(e)}"
+
+        if sent_message:
             await bot.edit_message_text(
-                f"Error creating model: {str(model_err)}",
+                error_message_text,
                 chat_id=sent_message.chat.id,
                 message_id=sent_message.message_id
             )
-            sent_message = None
-    except Exception as e:
-        traceback.print_exc()
-        # Fallback error message
-        error_message_text = f"Error in gemini_draw: {str(e)}"
-        try: # Try to get localized message
-            error_message_text = f"{get_message('error_info', user_id)}\n{get_message('error_details', user_id)}{str(e)}"
-        except Exception:
-            pass
-        
-        # If "Drawing..." message was sent and error occurs, edit it. Otherwise, send a new message.
-        if sent_message:
-            await bot.edit_message_text(error_message_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
         else:
             await bot.reply_to(message, error_message_text)

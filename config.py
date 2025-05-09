@@ -86,6 +86,7 @@ command_descriptions = {
 conf = {
     "model_1": "gemini-2.5-flash-preview-04-17",
     "model_2": "gemini-2.5-pro-exp-03-25",
+    "model_3": "gemini-2.0-flash-exp", #for draw
     "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
     "default_language": "zh"  # 默认语言
 }
