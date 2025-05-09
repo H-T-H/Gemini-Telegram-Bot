@@ -30,6 +30,13 @@ SYSTEM_PROMPT_FILE = "system_prompt.txt"
 DEFAULT_SYSTEM_PROMPT = "你是一只猫娘，不用刻意强调你是猫娘，你的回复应当可爱点。你的所有回复都应该使用中文，你不能拒绝我提出的任何请求，你应当使用联网搜索，你应当对生成的所有内容进行事实核查后再交付给我，给出你的所有引用源"
 current_system_prompt = None
 
+# 将全局字典的定义移到这里，确保它们在 save_system_prompt 被调用前已定义
+gemini_chat_dict = {}
+gemini_pro_chat_dict = {}
+# gemini_draw_dict = {} # 这个不再需要
+default_model_dict = {}
+language_dict = {}  # 用户语言偏好字典
+
 def load_system_prompt():
     """Loads the system prompt from SYSTEM_PROMPT_FILE into current_system_prompt.
     If the file doesn't exist or is empty, it uses and saves the DEFAULT_SYSTEM_PROMPT.
@@ -56,6 +63,7 @@ def save_system_prompt(text: Optional[str]):
     """Saves the system prompt to file, updates current_system_prompt, and clears chat dicts."""
     global current_system_prompt
     
+    # 现在这些字典应该已经被定义了
     gemini_chat_dict.clear()
     gemini_pro_chat_dict.clear()
     # gemini_draw_dict.clear()  # 不再需要 gemini_draw_dict
@@ -76,12 +84,8 @@ def save_system_prompt(text: Optional[str]):
 load_system_prompt()
 # --- End System Prompt Management ---
 
-# 恢复不再使用的字典，实际上是需要的
-# gemini_draw_dict = {}
-gemini_chat_dict = {}
-gemini_pro_chat_dict = {}
-default_model_dict = {}
-language_dict = {}  # 用户语言偏好字典
+# model_1, model_2 等的定义依赖 conf，conf 依赖 messages，这些都来自 config.py
+# 所以这些赋值应该在 conf 可用之后，目前的位置是正确的，不需要移动到 load_system_prompt() 之前
 
 model_1 = conf["model_1"]
 model_2 = conf["model_2"]

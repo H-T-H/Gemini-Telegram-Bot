@@ -9,20 +9,20 @@ messages = {
         "error_info": "⚠️⚠️⚠️\n出现错误！\n请尝试更改您的提示或联系管理员！",
         "before_generate_info": "🤖正在生成🤖",
         "download_pic_notify": "🤖正在加载图片🤖",
-        "welcome_message": "欢迎，您现在可以向我提问。\n例如：`鲁迅是谁？`",
-        "gemini_usage_tip": "请在 /gemini 后添加您想说的内容。\n例如：鲁迅是谁？`",
-        "gemini_pro_usage_tip": "请在 /gemini_pro 后添加您想说的内容。\n例如：`/gemini_pro 鲁迅是谁？`",
+        "welcome_message": "欢迎，您现在可以向我提问。\n例如：`约翰·列侬是谁？`",
+        "gemini_usage_tip": "请在 /gemini 后添加您想说的内容。\n例如：`/gemini 约翰·列侬是谁？`",
+        "gemini_pro_usage_tip": "请在 /gemini_pro 后添加您想说的内容。\n例如：`/gemini_pro 约翰·列侬是谁？`",
         "history_cleared": "您的历史记录已被清除",
         "private_chat_only": "此命令仅适用于私聊！",
         "using_model": "您现在正在使用 ",
         "send_photo_request": "请发送一张照片",
-        "draw_usage_tip": "请在 /draw 后添加您想绘制的内容。\n例如：`/draw 给我画一只猫娘。`",
+        "draw_usage_tip": "请在 /draw 后添加您想绘制的内容。\n例如：`/draw 给我画一只猫。`",
         "drawing": "正在绘制...",
         "generating_answers": "🤖 正在生成回答...",
         "error_details": "错误详情: ",
         "language_switched": "已切换到中文",
         "language_usage_tip": "使用 /language 命令切换语言（中文/英文）",
-        "system_prompt_set_usage": "请在 /set_system_prompt 后添加您的系统提示词。\n例如：`/set_system_prompt 你是一个猫娘。`",
+        "system_prompt_set_usage": "请在 /set_system_prompt 后添加您的系统提示词。\n例如：`/set_system_prompt 你是一个乐于助人的助手。`",
         "system_prompt_set_success": "✅ 系统提示词已设置并应用。后续对话将使用新的提示词。",
         "system_prompt_current": "ℹ️ 当前系统提示词为：",
         "system_prompt_not_set": "ℹ️ 当前未设置系统提示词。",
@@ -87,14 +87,11 @@ command_descriptions = {
 conf = {
     "model_1": "gemini-2.5-flash-preview-04-17",
     "model_2": "gemini-2.5-pro-exp-03-25",
-    "model_3": "gemini-2.0-flash-preview-image-generation", # 更新为图像生成预览模型
-    
-    # 以下配置项在新的图像生成方法中不再直接使用，但保留注释以供参考
-    "imagen_model_name": "serviceapi-imagegen@001", 
-    "draw_num_images": 1, 
-    "draw_aspect_ratio": "1:1", 
-    "draw_output_mime_type": "image/png", 
-    
+    "model_3": "gemini-2.0-flash-exp", # for other uses or as a non-image default if needed
+    "imagen_model_name": "serviceapi-imagegen@001", # 尝试使用常见的图像生成模型名称
+    "draw_num_images": 1, # /draw 命令生成的图片数量
+    "draw_aspect_ratio": "1:1", # /draw 命令生成图片的宽高比 (e.g., "1:1", "16:9", "3:4")
+    "draw_output_mime_type": "image/png", # /draw 命令生成图片的MIME类型
     "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
     "default_language": "zh"  # 默认语言
 }
