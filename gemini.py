@@ -486,10 +486,19 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             # 直接传递配置参数给 send_message_stream，不使用 SendMessageConfig
             # 如果是字符串消息
             if isinstance(current_message, str):
-                response_stream = chat_session.send_message_stream(
-                    message=current_message,
-                    **gen_conf_params  # 直接展开配置参数
-                )
+                try:
+                    response_stream = chat_session.send_message_stream(
+                        message=current_message,
+                        **gen_conf_params  # 直接展开配置参数
+                    )
+                except Exception as e_send:
+                    print(f"发送消息时出错: {e_send}")
+                    await bot.edit_message_text(
+                        f"发送消息时出错: {str(e_send)}", 
+                        chat_id=sent_message.chat.id,
+                        message_id=sent_message.message_id
+                    )
+                    break
             # 如果是函数响应（Google 搜索不需要手动处理函数响应，SDK 会自动处理）
             else:
                 # 保留这部分代码，但可能在新版 SDK 中不需要
@@ -511,23 +520,97 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             
             accumulated_text = ""
             
-            async for chunk in response_stream:
-                # 处理文本部分
-                if hasattr(chunk, "text") and chunk.text:
-                    accumulated_text += chunk.text
-                    try:
-                        await bot.edit_message_text(
-                            escape(accumulated_text), 
-                            chat_id=sent_message.chat.id,
-                            message_id=sent_message.message_id,
-                            parse_mode="MarkdownV2"
-                        )
-                    except Exception as e_edit:
-                        if "message is not modified" not in str(e_edit).lower():
+            # 修复: 使用适当的方式迭代流式响应，处理可能是普通生成器的情况
+            if response_stream:
+                try:
+                    # 解决方案 1: 确认 response_stream 是异步迭代器
+                    if hasattr(response_stream, "__aiter__"):
+                        async for chunk in response_stream:
+                            # 处理文本部分
+                            if hasattr(chunk, "text") and chunk.text:
+                                accumulated_text += chunk.text
+                                try:
+                                    await bot.edit_message_text(
+                                        escape(accumulated_text), 
+                                        chat_id=sent_message.chat.id,
+                                        message_id=sent_message.message_id,
+                                        parse_mode="MarkdownV2"
+                                    )
+                                except Exception as e_edit:
+                                    if "message is not modified" not in str(e_edit).lower():
+                                        try:
+                                            await bot.edit_message_text(accumulated_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                                        except Exception as e_plain:
+                                            print(f"Error updating message during stream (plain): {e_plain}")
+                    # 解决方案 2: 如果是普通生成器，使用普通的 for 循环处理
+                    else:
+                        # 导入必要的库
+                        import inspect
+                        print("response_stream 不是异步迭代器，尝试使用普通迭代方式处理")
+                        
+                        # 如果是普通生成器，使用普通迭代
+                        if inspect.isgenerator(response_stream):
+                            for chunk in response_stream:
+                                # 处理文本部分
+                                if hasattr(chunk, "text") and chunk.text:
+                                    accumulated_text += chunk.text
+                                    try:
+                                        await bot.edit_message_text(
+                                            escape(accumulated_text), 
+                                            chat_id=sent_message.chat.id,
+                                            message_id=sent_message.message_id,
+                                            parse_mode="MarkdownV2"
+                                        )
+                                    except Exception as e_edit:
+                                        if "message is not modified" not in str(e_edit).lower():
+                                            try:
+                                                await bot.edit_message_text(accumulated_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                                            except Exception as e_plain:
+                                                print(f"Error updating message during stream (plain): {e_plain}")
+                        # 如果是特殊类型，可能需要特定处理
+                        else:
+                            print(f"未知的 response_stream 类型: {type(response_stream)}")
+                            # 尝试直接迭代
                             try:
-                                await bot.edit_message_text(accumulated_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-                            except Exception as e_plain:
-                                print(f"Error updating message during stream (plain): {e_plain}")
+                                for item in response_stream:
+                                    chunk = item  # 假设能直接迭代出 chunk
+                                    # 处理文本部分
+                                    if hasattr(chunk, "text") and chunk.text:
+                                        accumulated_text += chunk.text
+                                        try:
+                                            await bot.edit_message_text(
+                                                escape(accumulated_text), 
+                                                chat_id=sent_message.chat.id,
+                                                message_id=sent_message.message_id,
+                                                parse_mode="MarkdownV2"
+                                            )
+                                        except Exception as e_edit:
+                                            if "message is not modified" not in str(e_edit).lower():
+                                                try:
+                                                    await bot.edit_message_text(accumulated_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                                                except Exception as e_plain:
+                                                    print(f"Error updating message during stream (plain): {e_plain}")
+                            except Exception as e_iter:
+                                print(f"尝试迭代 response_stream 失败: {e_iter}")
+                                # 如果所有方法都失败，尝试获取最终响应
+                                try:
+                                    final_response = await chat_session.send_message(
+                                        message=current_message,
+                                        **gen_conf_params
+                                    )
+                                    if hasattr(final_response, "text") and final_response.text:
+                                        accumulated_text = final_response.text
+                                    else:
+                                        accumulated_text = "无法获取流式响应，已转为非流式响应。请检查模型配置。"
+                                except Exception as e_final:
+                                    print(f"获取最终响应也失败: {e_final}")
+                                    accumulated_text = "无法从模型获取任何响应。请稍后再试或联系管理员。"
+                
+                except Exception as e_stream:
+                    print(f"处理流式响应时出错: {e_stream}")
+                    accumulated_text = f"处理响应流时出错: {str(e_stream)}"
+            else:
+                accumulated_text = "未能获取响应流，可能是会话已失效。请尝试重新启动对话。"
             
             # 处理最终文本响应
             print("Stream ended.")
