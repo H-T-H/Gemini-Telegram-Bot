@@ -484,19 +484,41 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
         # 如果聊天会话不支持搜索功能，但用户的查询可能需要搜索（包含可能需要实时信息的问题），
         # 先使用单独的搜索函数获取信息，然后将搜索结果和原始查询一起发送给聊天会话
         search_enhanced_message = m
-        if not chat_supports_search and needs_search(m):
-            print(f"用户查询可能需要搜索，但聊天会话不支持搜索功能。尝试先进行单独搜索: {m[:100]}...")
+        
+        # 强制检查是否为时间相关查询，如果是则必须执行搜索
+        time_indicators = ['今天', '现在', '时间', '日期', '几月', '几号', '几点', '星期', '周几', 
+                          'today', 'now', 'time', 'date', 'hour', 'minute', 'day', 'month']
+        is_time_query = False
+        for indicator in time_indicators:
+            if indicator in m.lower():
+                is_time_query = True
+                print(f"检测到时间相关查询: '{indicator}'，将强制执行搜索")
+                break
+        
+        # 如果是时间相关查询或聊天会话不支持搜索功能但查询可能需要搜索
+        if is_time_query or (not chat_supports_search and needs_search(m)):
+            print(f"需要执行搜索。原因: {'时间相关查询' if is_time_query else '聊天会话不支持搜索功能但查询可能需要搜索'}")
+            print(f"尝试先进行单独搜索: {m[:100]}...")
             try:
                 # 不使用 bot.reply_to 避免发送额外消息
                 # 单独进行搜索
                 search_result = await perform_standalone_search(m)
                 if search_result:
-                    # 将搜索结果添加到原始查询中
-                    search_enhanced_message = f"{m}\n\n以下是相关搜索结果 (请使用这些信息帮助回答上面的问题):\n{search_result}"
-                    print("已将搜索结果添加到用户查询中")
+                    # 将搜索结果添加到原始查询中，并强调这是最新信息
+                    search_enhanced_message = f"{m}\n\n以下是最新的相关搜索结果 (请使用这些最新信息回答上面的问题，不要只依赖你的训练数据):\n\n{search_result}\n\n请根据以上最新信息回答问题，如果涉及日期时间，请明确指出当前日期时间。"
+                    print(f"已将搜索结果添加到用户查询中，增强消息长度: {len(search_enhanced_message)} 字符")
+                else:
+                    # 如果搜索失败但是时间相关查询，提示模型仍需要提供最新信息
+                    if is_time_query:
+                        search_enhanced_message = f"{m}\n\n请注意：这是一个与时间相关的查询，需要最新信息。搜索功能未能返回结果，但请尽量提供当前的准确信息。如果涉及日期或时间，请明确指出今天的日期和当前时间。"
+                        print("搜索未返回结果，但添加了时间相关提示")
             except Exception as e_search:
                 print(f"单独搜索失败: {e_search}，继续使用原始查询")
-        
+                # 如果搜索失败但是时间相关查询，至少提示模型需要提供最新信息
+                if is_time_query:
+                    search_enhanced_message = f"{m}\n\n请注意：这是一个与时间相关的查询，需要最新信息。尽管搜索功能遇到问题，但请尽量提供当前的准确信息。如果涉及日期或时间，请明确指出今天的日期和当前时间。"
+                    print("搜索过程出错，但添加了时间相关提示")
+                
         # 主循环处理消息和函数调用
         current_message = search_enhanced_message  # 使用可能已增强的消息
         
@@ -652,7 +674,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                         print(f"编辑时仍 MESSAGE_TOO_LONG: {e_final_md}. 删除并分段.")
                         if sent_message:
                             try: await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-                            except Exception as e_del: print(f"警告: 删除消息失败 (stream final, edit too long): {e_del}")
+                            except Exception as e_del: print(f"警告: 删除 '正在生成' 消息失败 (edit, edit too long): {e_del}")
                             sent_message = None
                         current_pos = 0
                         while current_pos < len(original_final_text):
@@ -927,8 +949,12 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
         
         # 确保不使用 conf["draw_output_mime_type"]
         
-        # 尝试使用生成图像的提示前缀
-        image_prompt = f"请根据以下描述生成一张图片。确保返回的是图像数据，而不仅仅是文本描述：\n\n{m}"
+        # 更新图像生成提示，使其更适合新模型
+        image_prompt = f"Generate a detailed image based on this description. Create high-quality visual content, not just text:\n\n{m}"
+        
+        # 如果用户使用中文，也添加中文提示
+        if get_user_language(user_id) == "zh":
+            image_prompt = f"请根据以下描述生成一张详细的图片。创建高质量的视觉内容，而不是文本描述：\n\n{m}"
         
         # 合并全局配置
         if generation_config:
@@ -1098,12 +1124,26 @@ def needs_search(query: str) -> bool:
         'latest', 'recent', 'today', 'yesterday', 'current', 'news',
         'update', 'release', 'version', 'weather', 'price', 'stock',
         'match', 'score', 'award', 'result', 'who', 'how', 'why', 'when',
-        'where', 'what', 'rank', 'stat', 'data'
+        'where', 'what', 'rank', 'stat', 'data',
+        # 增加对时间的识别
+        '几月', '几号', '几点', '周几', '星期几', '几周', '几天', '几小时', '多久', 
+        '日期', '几年', '年份', '月份', '日子', '几分', '几秒', '上午', '下午', '晚上',
+        '凌晨', '上周', '下周', '上个月', '下个月', '去年', '今年', '明年', 
+        '刚刚', '刚才', '方才', '现在', '此刻', '当下', '即时', '即刻', 
+        '日历', '农历', '阳历', '公历', '节日', '节假日', '假期', '放假',
+        '上市', '发售', '开始', '结束', '开幕', '闭幕', '开业', '关闭',
+        'date', 'time', 'hour', 'minute', 'second', 'day', 'month', 'year',
+        'week', 'fortnight', 'morning', 'afternoon', 'evening', 'night',
+        'holiday', 'schedule', 'now', 'current', 'present', 'moment',
+        'instant', 'immediately', 'soon', 'launch', 'release', 'start', 'end',
+        'open', 'close', 'begin', 'finish'
     ]
     
     # 如果查询包含任何指示搜索的关键词
     for indicator in search_indicators:
         if indicator in query_lower:
+            # 打印匹配的关键词，方便调试
+            print(f"查询'{query}'包含搜索关键词: '{indicator}'，需要搜索")
             return True
     
     # 检查是否包含询问事实或当前信息的模式
@@ -1113,15 +1153,30 @@ def needs_search(query: str) -> bool:
         r'.*?多少.*?', r'.*?在哪里.*?', r'.*?何时.*?', r'.*?怎样.*?',
         r'.*?的区别', r'.*?的差异', r'.*?的不同', r'.*?的异同',
         r'who is.*?', r'what is.*?', r'how to.*?', r'why.*?',
-        r'where.*?', r'when.*?', r'difference between.*?'
+        r'where.*?', r'when.*?', r'difference between.*?',
+        # 增加对日期时间询问的模式
+        r'几点.*?', r'什么时候.*?', r'哪一天.*?', r'哪一年.*?', 
+        r'哪个月.*?', r'今天是.*?', r'现在是.*?', r'几月几号.*?',
+        r'what time.*?', r'what date.*?', r'which day.*?', r'when is.*?',
+        r'today.*?', r'current time.*?', r'right now.*?', r'this moment.*?'
     ]
     
     for pattern in factual_patterns:
         if re.search(pattern, query_lower):
+            # 打印匹配的模式，方便调试
+            print(f"查询'{query}'匹配搜索模式: '{pattern}'，需要搜索")
+            return True
+    
+    # 强制让所有包含"今天"、"现在"、"时间"的查询进行搜索
+    force_search_keywords = ['今天', '现在', '时间', 'today', 'now', 'time', 'date']
+    for keyword in force_search_keywords:
+        if keyword in query_lower:
+            print(f"查询'{query}'包含强制搜索关键词: '{keyword}'，必须搜索")
             return True
     
     # 如果查询很长（超过50个字符），可能是复杂问题需要搜索
     if len(query) > 50:
+        print(f"查询'{query}'长度超过50字符，可能需要搜索")
         return True
     
     return False
@@ -1166,31 +1221,77 @@ async def perform_standalone_search(query: str) -> str:
                 del gen_conf_params[key]
                 print(f"perform_standalone_search: 从配置中移除可能不兼容的参数: {key}")
         
+        # 增强搜索查询的明确性
+        # 检查是否与时间相关的查询
+        is_time_query = False
+        time_indicators = ['今天', '现在', '时间', '日期', '几月', '几号', '几点', '星期', '周几', 
+                          'today', 'now', 'time', 'date', 'hour', 'minute', 'day', 'month']
+                          
+        for indicator in time_indicators:
+            if indicator in query.lower():
+                is_time_query = True
+                break
+        
         # 执行搜索查询
         print(f"执行独立搜索查询: {query[:100]}...")
         
-        # 制作专门用于搜索的提示
-        search_prompt = f"请搜索并提供关于以下问题的最新信息和事实: {query}"
+        # 根据查询类型制作专门的搜索提示
+        if is_time_query:
+            search_prompt = (f"这是一个关于时间、日期或当前状态的查询，必须使用最新的网络数据。"
+                           f"请搜索并提供关于以下问题的实时信息，确保使用当前的日期和时间: {query}\n\n"
+                           f"非常重要: 必须使用最新的网络数据回答，不要依赖你的训练数据。"
+                           f"如果涉及日期或时间，请明确指出当前的准确日期和时间。")
+            print("检测到时间相关查询，使用强制要求实时数据的提示")
+        else:
+            search_prompt = (f"请搜索并提供关于以下问题的最新准确信息和事实: {query}\n\n"
+                           f"重要: 请尽可能使用最新的网络数据回答，不要仅依赖你的训练数据。"
+                           f"如果用户查询需要最新信息，请确保搜索并提供最新结果。")
         
-        response = await gemini_client.aio.models.generate_content(
-            model=model_1,  # 使用默认模型
-            contents=search_prompt,
-            tools=[types.Tool(google_search=types.GoogleSearch())],
-            **gen_conf_params
-        )
+        # 设置搜索工具
+        search_tool = types.Tool(google_search=types.GoogleSearch())
+        
+        # 使用高温度参数以获取更多元化的回答
+        if 'temperature' not in gen_conf_params:
+            gen_conf_params['temperature'] = 0.9
+        
+        try:
+            # 尝试直接使用 generate_content 和搜索工具
+            response = await gemini_client.aio.models.generate_content(
+                model=model_1,  # 使用默认模型
+                contents=search_prompt,
+                tools=[search_tool],
+                **gen_conf_params
+            )
+            print("搜索请求成功完成，正在处理结果")
+        except Exception as e_search:
+            print(f"使用 google_search 工具失败: {e_search}")
+            try:
+                # 退回到不使用工具的方式，但仍尝试执行搜索查询
+                fallback_prompt = f"【重要：请执行网络搜索】\n{search_prompt}\n【这是一个需要最新信息的查询】"
+                response = await gemini_client.aio.models.generate_content(
+                    model=model_1,  # 使用默认模型
+                    contents=fallback_prompt,
+                    **gen_conf_params
+                )
+                print("使用替代方法完成搜索")
+            except Exception as e_fallback:
+                print(f"替代搜索方法也失败: {e_fallback}")
+                return f"搜索功能暂时不可用。错误: {str(e_fallback)[:100]}"
         
         # 处理响应
         if hasattr(response, "text") and response.text:
+            print(f"搜索成功，返回结果长度: {len(response.text)} 字符")
             return response.text
         elif response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
             result_text = ""
             for part in response.candidates[0].content.parts:
                 if hasattr(part, "text") and part.text:
                     result_text += part.text
+            print(f"搜索成功，返回结果长度: {len(result_text)} 字符")
             return result_text
         
-        return ""  # 如果没有获得有效结果
+        return "搜索未返回有效结果，请重试或改变查询方式。"  # 提供更有用的错误信息
         
     except Exception as e:
         print(f"独立搜索查询失败: {e}")
-        return ""  # 失败时返回空字符串
+        return f"搜索过程中发生错误: {str(e)[:100]}"  # 返回错误信息而非空字符串
