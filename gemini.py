@@ -883,8 +883,12 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
         
         # 准备专门用于图像生成的配置
         config_params = {
-            "response_mime_type": "image/png",  # 请求图像输出
+            # 移除不支持的参数 "response_mime_type": "image/png"
+            # 新版 SDK 可能使用其他方法指定响应类型
         }
+        
+        # 尝试使用生成图像的提示前缀
+        image_prompt = f"请根据以下描述生成一张图片。确保返回的是图像数据，而不仅仅是文本描述：\n\n{m}"
         
         # 合并全局配置
         if generation_config:
@@ -913,12 +917,12 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
         
         # 调用 generate_content API
         try:
-            print(f"调用模型 '{draw_model_name}' generate_content，提示: '{m}'，配置参数: {config_params}")
+            print(f"调用模型 '{draw_model_name}' generate_content，提示: '{image_prompt[:100]}...'，配置参数: {config_params}")
             
-            # 使用新的 SDK API 调用，直接传递配置参数
+            # 使用新的 SDK API 调用，直接传递配置参数，使用增强的提示
             response = await gemini_client.aio.models.generate_content(
                 model=draw_model_name,
-                contents=m,  # 用户提供的提示字符串
+                contents=image_prompt,  # 使用专门针对图像生成的提示
                 **config_params  # 直接展开配置参数
             )
             
