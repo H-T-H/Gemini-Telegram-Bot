@@ -130,7 +130,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
         if user_id_str not in chat_session_dict:
             print(f"Creating new chat for {user_id_str} with model {model_type} and Google search tool.")
             
-            # 新 SDK 方式: 使用 client.chats.create() 创建聊天
+            # 准备系统指令
             system_instruction = current_system_prompt if current_system_prompt else None
             
             # 准备安全设置
@@ -146,13 +146,12 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                     print(f"警告: 格式化 safety_settings 出错: {e_ss}")
             
             # 使用 Google 搜索工具创建聊天会话
+            # 直接将配置参数传递给 create 方法，不使用 ChatConfig
             chat_session = gemini_client.chats.create(
                 model=model_type,
-                config=types.ChatConfig(
-                    tools=[types.Tool(google_search=types.GoogleSearch())],  # 改为使用内置的 Google 搜索
-                    system_instruction=system_instruction,
-                    safety_settings=formatted_safety_settings if formatted_safety_settings else None
-                )
+                tools=[types.Tool(google_search=types.GoogleSearch())],  # 使用内置的 Google 搜索
+                system_instruction=system_instruction,
+                safety_settings=formatted_safety_settings if formatted_safety_settings else None
             )
             chat_session_dict[user_id_str] = chat_session
         else:
@@ -163,35 +162,40 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
         if generation_config: 
             gen_conf_params.update(generation_config)
         
-        send_message_config = None
-        if gen_conf_params:
-            try:
-                send_message_config = types.SendMessageConfig(**gen_conf_params)
-            except Exception as e_cfg:
-                print(f"Error creating SendMessageConfig: {e_cfg}")
-
         # 主循环处理消息和函数调用
         current_message = m
         
         while True:
-            print(f"Sending to model ({model_type}): {str(current_message)[:100]}... Config: {send_message_config}")
+            print(f"Sending to model ({model_type}): {str(current_message)[:100]}...")
             
             # 新 SDK 流式响应
             response_stream = None
             
+            # 直接传递配置参数给 send_message_stream，不使用 SendMessageConfig
             # 如果是字符串消息
             if isinstance(current_message, str):
                 response_stream = chat_session.send_message_stream(
                     message=current_message,
-                    config=send_message_config
+                    **gen_conf_params  # 直接展开配置参数
                 )
             # 如果是函数响应（Google 搜索不需要手动处理函数响应，SDK 会自动处理）
             else:
-                # 为了兼容性保留，但在 Google 搜索中不会用到
-                response_stream = chat_session.send_message_stream(
-                    function_response=current_message,
-                    config=send_message_config
-                )
+                # 保留这部分代码，但可能在新版 SDK 中不需要
+                print("Warning: Non-string message type detected. This might not be supported in the new SDK.")
+                # 尝试直接发送当前消息
+                try:
+                    response_stream = chat_session.send_message_stream(
+                        message=str(current_message),  # 尝试转换为字符串
+                        **gen_conf_params  # 直接展开配置参数
+                    )
+                except Exception as e_send:
+                    print(f"Error sending non-string message: {e_send}")
+                    await bot.edit_message_text(
+                        f"发送消息时出错: {str(e_send)}", 
+                        chat_id=sent_message.chat.id,
+                        message_id=sent_message.message_id
+                    )
+                    break
             
             accumulated_text = ""
             
@@ -330,23 +334,15 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
             for key, value in generation_config.items():
                 config_params[key] = value
         
-        # 创建 GenerateContentConfig
-        gen_config = None
-        if config_params:
-            try:
-                gen_config = types.GenerateContentConfig(**config_params)
-            except Exception as e_conf:
-                print(f"警告: 创建 GenerateContentConfig 失败 (gemini_edit): {e_conf}")
-        
         # 调用新的 SDK 客户端进行 API 调用
         try:
-            print(f"gemini_edit: 调用模型 {edit_model_name}，配置: {gen_config}")
+            print(f"gemini_edit: 调用模型 {edit_model_name}，配置参数: {config_params}")
             
-            # 使用新的 SDK API 调用
+            # 使用新的 SDK API 调用，直接传递配置参数
             response = await gemini_client.aio.models.generate_content(
                 model=edit_model_name, 
                 contents=contents,
-                config=gen_config
+                **config_params  # 直接展开配置参数
             )
             
             text_response = ""
@@ -509,22 +505,15 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
             except Exception as e_ss:
                 print(f"警告: 格式化 safety_settings 出错 (gemini_draw): {e_ss}")
         
-        gen_config = None
-        if config_params:
-            try:
-                gen_config = types.GenerateContentConfig(**config_params)
-            except Exception as e_conf:
-                print(f"错误: 创建 GenerateContentConfig 失败 (gemini_draw): {e_conf}。配置: {config_params}")
-        
         # 调用 generate_content API
         try:
-            print(f"调用模型 '{draw_model_name}' generate_content，提示: '{m}'，配置: {gen_config}")
+            print(f"调用模型 '{draw_model_name}' generate_content，提示: '{m}'，配置参数: {config_params}")
             
-            # 使用新的 SDK API 调用
+            # 使用新的 SDK API 调用，直接传递配置参数
             response = await gemini_client.aio.models.generate_content(
                 model=draw_model_name,
                 contents=m,  # 用户提供的提示字符串
-                config=gen_config
+                **config_params  # 直接展开配置参数
             )
             
             # 检查是否有临时消息需要删除
