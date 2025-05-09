@@ -1,4 +1,4 @@
-from google.genai import types
+import google.generativeai as genai
 
 # 中英文消息配置
 messages = {
@@ -89,29 +89,29 @@ conf = {
 }
 
 safety_settings = [
-    types.SafetySetting(
+    genai.types.SafetySetting(
         category="HARM_CATEGORY_HARASSMENT",
         threshold="BLOCK_NONE",
     ),
-    types.SafetySetting(
+    genai.types.SafetySetting(
         category="HARM_CATEGORY_HATE_SPEECH",
         threshold="BLOCK_NONE",
     ),
-    types.SafetySetting(
+    genai.types.SafetySetting(
         category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
         threshold="BLOCK_NONE",
     ),
-    types.SafetySetting(
+    genai.types.SafetySetting(
         category="HARM_CATEGORY_DANGEROUS_CONTENT",
         threshold="BLOCK_NONE",
     ),
-    types.SafetySetting(
+    genai.types.SafetySetting(
         category="HARM_CATEGORY_CIVIC_INTEGRITY",
         threshold="BLOCK_NONE",
     )
 ]
 
-generation_config = types.GenerateContentConfig(
+generation_config = genai.types.GenerateContentConfig(
     response_modalities=['Text'],
     safety_settings=safety_settings,
 )
