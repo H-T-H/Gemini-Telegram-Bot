@@ -89,29 +89,29 @@ conf = {
 }
 
 safety_settings = [
-    genai.types.SafetySetting(
+    genai.SafetySetting(
         category="HARM_CATEGORY_HARASSMENT",
         threshold="BLOCK_NONE",
     ),
-    genai.types.SafetySetting(
+    genai.SafetySetting(
         category="HARM_CATEGORY_HATE_SPEECH",
         threshold="BLOCK_NONE",
     ),
-    genai.types.SafetySetting(
+    genai.SafetySetting(
         category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
         threshold="BLOCK_NONE",
     ),
-    genai.types.SafetySetting(
+    genai.SafetySetting(
         category="HARM_CATEGORY_DANGEROUS_CONTENT",
         threshold="BLOCK_NONE",
     ),
-    genai.types.SafetySetting(
+    genai.SafetySetting(
         category="HARM_CATEGORY_CIVIC_INTEGRITY",
         threshold="BLOCK_NONE",
     )
 ]
 
-generation_config = genai.types.GenerateContentConfig(
+generation_config = genai.GenerateContentConfig(
     response_modalities=['Text'],
     safety_settings=safety_settings,
 )
