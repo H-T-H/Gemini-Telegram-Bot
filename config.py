@@ -87,7 +87,11 @@ command_descriptions = {
 conf = {
     "model_1": "gemini-2.5-flash-preview-04-17",
     "model_2": "gemini-2.5-pro-exp-03-25",
-    "model_3": "gemini-2.0-flash-exp", #for draw, reverted as per user request
+    "model_3": "gemini-2.0-flash-exp", # for other uses or as a non-image default if needed
+    "imagen_model_name": "imagen-3.0-generate-001", # 专用于新 SDK 的图像生成
+    "draw_num_images": 1, # /draw 命令生成的图片数量
+    "draw_aspect_ratio": "1:1", # /draw 命令生成图片的宽高比 (e.g., "1:1", "16:9", "3:4")
+    "draw_output_mime_type": "image/png", # /draw 命令生成图片的MIME类型
     "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
     "default_language": "zh"  # 默认语言
 }

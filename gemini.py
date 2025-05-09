@@ -248,224 +248,237 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
 
 async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes):
     user_id = message.from_user.id
-    pil_image = Image.open(io.BytesIO(photo_file))
     sent_message = None
-    
     try:
+        if not gemini_client:
+            error_text = "非常严重的错误: Gemini 客户端尚未在 gemini.py 中初始化。请检查 main.py 中的设置。"
+            print(error_text)
+            await bot.reply_to(message, error_text)
+            return
+
+        pil_image = Image.open(io.BytesIO(photo_file))
         sent_message = await bot.reply_to(message, get_message("generating_answers", user_id))
-        print(f"Using system prompt for edit: {current_system_prompt}")
         
-        # 尝试创建模型实例，并处理各种库版本差异
-        try:
-            # 构建一个带有系统提示的模型配置
-            model_config = {
-                "model_name": model_2,
-                "generation_config": generation_config
-            }
-            
-            # 如果有系统提示，添加它
-            if current_system_prompt:
-                model_config["system_instruction"] = current_system_prompt
-            
-            # 如果有安全设置，添加它
-            if safety_settings:
-                model_config["safety_settings"] = safety_settings
-            
-            # 尝试创建模型
-            model = genai.GenerativeModel(**model_config)
-            
-            # 准备内容
-            contents = []
-            if m and m.strip():
-                contents.append(m)
-            contents.append(pil_image)
-            
-            # 尝试生成内容
+        edit_model_name = model_2 # 来自全局 conf["model_2"]
+        print(f"gemini_edit: 使用模型 {edit_model_name}，系统提示: {current_system_prompt}")
+
+        # 准备 API 调用的 contents 参数
+        contents_for_api = []
+        if m and m.strip(): # 如果提供了文本提示，则添加
+            contents_for_api.append(m)
+        contents_for_api.append(pil_image) # 添加图片
+
+        if not contents_for_api or (not m and not pil_image): # 确保至少有内容
+            await bot.edit_message_text("没有提供用于编辑的提示或图片。", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            return
+
+        # 准备 generate_content 调用的配置参数
+        pydantic_config_params = {}
+        if current_system_prompt:
+            pydantic_config_params['system_instruction'] = current_system_prompt
+
+        if safety_settings: # 来自 config.py 的全局 safety_settings
             try:
-                if hasattr(model, "generate_content_async"):
-                    response = await model.generate_content_async(contents=contents)
-                else:
-                    # 如果不支持异步API，使用同步API
-                    response = model.generate_content(contents=contents)
-                
-                # 提取文本
-                text_response = ""
-                if hasattr(response, "text"):
-                    text_response = response.text
-                elif hasattr(response, "parts") and len(response.parts) > 0:
-                    for part in response.parts:
-                        if hasattr(part, "text") and part.text:
-                            text_response += part.text
-                
-                # 回复
-                if text_response:
-                    try:
-                        await bot.edit_message_text(
-                            escape(text_response),
-                            chat_id=sent_message.chat.id,
-                            message_id=sent_message.message_id,
-                            parse_mode="MarkdownV2"
-                        )
-                    except Exception as md_err:
-                        if "parse markdown" in str(md_err).lower():
-                            await bot.edit_message_text(
-                                text_response,
-                                chat_id=sent_message.chat.id,
-                                message_id=sent_message.message_id
-                            )
-                        else:
-                            raise md_err
-                else:
-                    await bot.edit_message_text(
-                        "No text response generated.",
-                        chat_id=sent_message.chat.id,
-                        message_id=sent_message.message_id
-                    )
-            except Exception as gen_err:
-                print(f"Error generating content: {gen_err}")
-                await bot.edit_message_text(
-                    f"Error generating content: {str(gen_err)}",
-                    chat_id=sent_message.chat.id,
-                    message_id=sent_message.message_id
-                )
-        except Exception as model_err:
-            print(f"Error creating model: {model_err}")
-            await bot.edit_message_text(
-                f"Error creating model: {str(model_err)}",
-                chat_id=sent_message.chat.id,
-                message_id=sent_message.message_id
+                formatted_safety_settings = []
+                for ss_item in safety_settings:
+                    if isinstance(ss_item, dict):
+                        formatted_safety_settings.append(types.SafetySetting(**ss_item))
+                    elif isinstance(ss_item, types.SafetySetting):
+                        formatted_safety_settings.append(ss_item)
+                if formatted_safety_settings:
+                    pydantic_config_params['safety_settings'] = formatted_safety_settings
+            except Exception as e_ss_format:
+                print(f"警告: 格式化 safety_settings 出错 (gemini_edit): {e_ss_format}。安全设置可能未生效。")
+
+        if generation_config: # 来自 config.py 的全局 generation_config
+            pydantic_config_params.update(generation_config)
+        
+        gen_config_for_api = None
+        if pydantic_config_params:
+            try:
+                gen_config_for_api = types.GenerateContentConfig(**pydantic_config_params)
+            except Exception as e_conf_create:
+                print(f"错误: 创建 GenerateContentConfig 失败 (gemini_edit): {e_conf_create}。配置参数: {pydantic_config_params}")
+
+        # 使用新的 SDK 客户端进行 API 调用
+        try:
+            print(f"gemini_edit: 调用模型 {edit_model_name}，配置: {gen_config_for_api}")
+            response = await gemini_client.aio.models.generate_content(
+                model=edit_model_name, 
+                contents=contents_for_api,
+                config=gen_config_for_api
             )
-    except Exception as e:
+            
+            text_response = ""
+            # 新 SDK 的 generate_content 直接在 response 对象上有 text 属性 (如果响应是文本)
+            # 或者在 response.candidates[0].content.parts[0].text
+            # 根据用户提供的文档，response.text 是一个便捷访问方式
+            if hasattr(response, "text") and response.text:
+                text_response = response.text
+            elif response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+                 for part in response.candidates[0].content.parts:
+                    if hasattr(part, "text") and part.text:
+                        text_response += part.text
+            # 旧的 parts 检查方式，保留以防万一，但新SDK推荐用 candidate 结构
+            elif hasattr(response, "parts") and response.parts: # Fallback for older possible structure or direct parts
+                for part in response.parts:
+                    if hasattr(part, "text") and part.text:
+                        text_response += part.text
+            
+            if text_response:
+                final_md_response = escape(text_response)
+                try:
+                    await bot.edit_message_text(
+                        final_md_response,
+                        chat_id=sent_message.chat.id,
+                        message_id=sent_message.message_id,
+                        parse_mode="MarkdownV2"
+                    )
+                except Exception as md_err:
+                    if "parse markdown" in str(md_err).lower():
+                        await bot.edit_message_text(text_response, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                    else:
+                        raise md_err # 重新抛出其他类型的编辑错误
+            else:
+                await bot.edit_message_text("编辑后未能生成文本响应。", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+
+        except types.BlockedPromptException as bpe: # 假设新SDK有这个具体的异常
+            print(f"gemini_edit: 用户 {user_id} 的提示被阻止: {bpe}")
+            await bot.edit_message_text(f"您的编辑请求因安全设置被阻止。详情: {bpe.args[0] if bpe.args else '已阻止'}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+        except genai.types.StopCandidateException as sce: 
+            print(f"gemini_edit: 用户 {user_id} 的生成被模型中止: {sce}")
+            await bot.edit_message_text(f"内容生成已按指示停止。{sce.args[0] if sce.args else ''}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+        except Exception as e_gen_content:
+            print(f"gemini_edit: generate_content 过程中出错: {e_gen_content}")
+            traceback.print_exc()
+            await bot.edit_message_text(f"处理您的编辑请求时出错: {str(e_gen_content)}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+
+    except Exception as e_outer:
         traceback.print_exc()
         error_msg_key = 'error_info'
-        # Attempt to get localized error messages
+        error_details_key = 'error_details' 
         try:
-            error_message_text = f"{get_message(error_msg_key, user_id)}: {str(e)}"
-        except Exception: # Fallback if get_message fails
-             error_message_text = f"Error in gemini_edit: {str(e)}"
+            error_message_text = f"{get_message(error_msg_key, user_id)}\n{get_message(error_details_key, user_id)}{str(e_outer)}"
+        except Exception: 
+             error_message_text = f"gemini_edit 中发生意外错误: {str(e_outer)}"
         
         if sent_message:
-            await bot.edit_message_text(
-                error_message_text,
-                chat_id=sent_message.chat.id,
-                message_id=sent_message.message_id
-            )
+            try:
+                await bot.edit_message_text(error_message_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            except Exception as e_final_error_edit:
+                print(f"gemini_edit: 编辑最终错误消息失败: {e_final_error_edit}")
         else:
-            await bot.send_message(message.chat.id, error_message_text)
+            try:
+                await bot.reply_to(message, error_message_text)
+            except Exception as e_final_error_reply:
+                print(f"gemini_edit: 回复最终错误消息失败: {e_final_error_reply}")
 
 async def gemini_draw(bot:TeleBot, message:Message, m:str):
     user_id = message.from_user.id
-    sent_message = None # To hold the "Drawing..." message
+    sent_message = None
     try:
+        if not gemini_client:
+            error_text = "非常严重的错误: Gemini 客户端尚未在 gemini.py 中初始化。"
+            print(error_text)
+            await bot.reply_to(message, error_text)
+            return
+
         sent_message = await bot.reply_to(message, get_message("drawing", user_id))
         
-        # 获取配置的模型名称，如果未配置 model_3，则提供一个备用值或抛出错误
-        # 这里我们假设 model_3 总是配置好的，因为用户刚刚添加了它
-        draw_model_name = conf.get("model_3", "gemini-2.0-flash-exp") # 使用 model_3
+        # 从配置中获取 Imagen 模型名称和相关参数
+        imagen_model_to_use = conf.get("imagen_model_name", "imagen-3.0-generate-001") # 提供一个默认值
+        num_images = conf.get("draw_num_images", 1)
+        aspect_r = conf.get("draw_aspect_ratio", "1:1")
+        output_mime = conf.get("draw_output_mime_type", "image/png")
 
-        # 尝试创建模型实例
+        print(f"gemini_draw: 使用模型 {imagen_model_to_use} 进行绘图，提示: {m}")
+
+        # 准备 GenerateImagesConfig
+        # 注意：根据新SDK文档，一些参数如 safety_filter_level, person_generation 也可在此配置
+        # 为简化，我们暂时只使用基础参数，您可以稍后根据需求在 config.py 中添加更多配置项
         try:
-            model_config_params = {
-                "model_name": draw_model_name,
-                # generation_config 全局的可能为空，或者不包含 mime_type
-            }
-            
-            # 如果有全局 safety_settings，添加它
-            if safety_settings:
-                model_config_params["safety_settings"] = safety_settings
-            
-            # 如果有系统提示，添加它 (虽然对于绘图可能不常用)
-            if current_system_prompt:
-                model_config_params["system_instruction"] = current_system_prompt
-            
-            model = genai.GenerativeModel(**model_config_params)
-            
-            # 准备生成图像的特定配置
-            image_generation_config = genai.types.GenerationConfig(
-                response_mime_type="image/png"
+            img_gen_config = types.GenerateImagesConfig(
+                number_of_images=num_images,
+                aspect_ratio=aspect_r,
+                output_mime_type=output_mime
+                # 您可以在此处添加更多来自 types.GenerateImagesConfig 的参数
+                # 例如：safety_filter_level="BLOCK_LOW_AND_ABOVE", person_generation="ALLOW_ADULT"
             )
+        except Exception as e_conf_create:
+            print(f"错误: 创建 GenerateImagesConfig 失败: {e_conf_create}")
+            await bot.edit_message_text(f"绘图配置错误: {str(e_conf_create)}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            return
 
-            # 尝试生成内容
-            try:
-                # 确保内容是列表形式，即使只有一个文本提示
-                contents_for_draw = [m]
-
-                if hasattr(model, "generate_content_async"):
-                    response = await model.generate_content_async(
-                        contents=contents_for_draw,
-                        generation_config=image_generation_config # 指定输出为图像
-                    )
-                else:
-                    # 同步回退 (虽然对于bot通常希望异步)
-                    response = model.generate_content(
-                        contents=contents_for_draw,
-                        generation_config=image_generation_config # 指定输出为图像
-                    )
-                
-                # 处理图像响应
-                if response.parts and response.parts[0].inline_data and response.parts[0].inline_data.mime_type == "image/png":
-                    image_data = response.parts[0].inline_data.data
-                    if sent_message: # 删除 "Drawing..." 消息
+        # 使用新的 SDK 客户端进行 API 调用
+        try:
+            print(f"gemini_draw: 调用模型 {imagen_model_to_use}，配置: {img_gen_config}")
+            response = await gemini_client.aio.models.generate_images(
+                model=imagen_model_to_use, 
+                prompt=m,
+                config=img_gen_config
+            )
+            
+            if response.generated_images:
+                if sent_message: # 删除 "正在绘制..." 消息
+                    try:
                         await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-                        sent_message = None
-                    await bot.send_photo(message.chat.id, photo=image_data, caption=f"🖼️: {m}")
-                else:
-                    # 如果没有有效的图像部分，则报告错误或意外的响应
-                    no_image_message = "Failed to generate image or unexpected response format."
-                    if hasattr(response, 'prompt_feedback') and response.prompt_feedback.block_reason:
-                        no_image_message += f" Reason: {response.prompt_feedback.block_reason_message or response.prompt_feedback.block_reason}"
-                    elif response.parts and response.parts[0].text: # 可能是模型返回了文本错误
-                         no_image_message += f" Model said: {response.parts[0].text}"
-                    
-                    if sent_message:
-                        await bot.edit_message_text(
-                            no_image_message,
-                            chat_id=sent_message.chat.id,
-                            message_id=sent_message.message_id
-                        )
+                    except Exception as e_del_msg:
+                        print(f"警告: 删除消息失败 (gemini_draw): {e_del_msg}")
+                    sent_message = None # 避免后续错误处理再次尝试编辑已删除消息
+                
+                for i, generated_image_obj in enumerate(response.generated_images):
+                    if hasattr(generated_image_obj, 'image') and hasattr(generated_image_obj.image, 'image_bytes') and generated_image_obj.image.image_bytes:
+                        image_data = generated_image_obj.image.image_bytes
+                        caption = f"🖼️ (#{i+1}): {m[:100]}" # 限制标题长度
+                        await bot.send_photo(message.chat.id, photo=image_data, caption=caption)
                     else:
-                        await bot.reply_to(message, no_image_message)
-
-            except Exception as gen_err:
-                print(f"Error generating image content: {gen_err}")
-                error_text = f"Error generating image: {str(gen_err)}"
-                if hasattr(gen_err, 'args') and len(gen_err.args) > 0 and isinstance(gen_err.args[0], str) and "Deadline Exceeded" in gen_err.args[0]:
-                    error_text = "Image generation timed out. Please try a simpler prompt or try again later."
-
-                if sent_message:
-                    await bot.edit_message_text(
-                        error_text,
-                        chat_id=sent_message.chat.id,
-                        message_id=sent_message.message_id
-                    )
-                else:
-                    await bot.reply_to(message, error_text)
-        
-        except Exception as model_err:
-            print(f"Error creating draw model: {model_err}")
-            if sent_message:
-                await bot.edit_message_text(
-                    f"Error creating draw model: {str(model_err)}",
-                    chat_id=sent_message.chat.id,
-                    message_id=sent_message.message_id
-                )
+                        print(f"gemini_draw: 生成的图像对象 {i+1} 缺少图像数据。")
+                        await bot.send_message(message.chat.id, f"图像 {i+1} 生成数据不完整。")
             else:
-                await bot.reply_to(message, f"Error creating draw model: {str(model_err)}")
+                no_image_message = "未能生成图像。模型没有返回任何图像。"
+                # 检查是否有 RAI (Responsible AI) 阻止原因
+                # 新SDK的 GenerateImagesResponse 可能有不同的反馈结构，需要查阅
+                # 例如，文档中 generate_images 的 config 有 include_rai_reason=True
+                # 响应中可能有 response.positive_prompt_safety_attributes 或类似字段
+                # 此处简化处理，实际应检查 response 结构以获取更详细的失败原因
+                if hasattr(response, 'prompt_feedback') and response.prompt_feedback.block_reason: # 借用 generate_content 的结构，可能不适用
+                    no_image_message += f" 原因: {response.prompt_feedback.block_reason_message or response.prompt_feedback.block_reason}"
+                
+                if sent_message:
+                    await bot.edit_message_text(no_image_message, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                else:
+                    await bot.reply_to(message, no_image_message)
 
-    except Exception as e:
+        except types.BlockedPromptException as bpe: # 假设这个异常适用于 generate_images
+            print(f"gemini_draw: 用户 {user_id} 的提示被阻止: {bpe}")
+            error_text = f"您的绘图请求因安全设置被阻止。详情: {bpe.args[0] if bpe.args else '已阻止'}"
+            if sent_message: await bot.edit_message_text(error_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id); sent_message=None
+            else: await bot.reply_to(message, error_text)
+        except Exception as e_gen_images:
+            print(f"gemini_draw: generate_images 过程中出错: {e_gen_images}")
+            traceback.print_exc()
+            error_text = f"处理您的绘图请求时出错: {str(e_gen_images)}"
+            if hasattr(e_gen_images, 'args') and len(e_gen_images.args) > 0 and isinstance(e_gen_images.args[0], str) and "Deadline Exceeded" in e_gen_images.args[0]:
+                error_text = "图像生成超时。请尝试更简单的提示或稍后再试。"
+            if sent_message: await bot.edit_message_text(error_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id); sent_message=None
+            else: await bot.reply_to(message, error_text)
+
+    except Exception as e_outer:
         traceback.print_exc()
         error_msg_key = 'error_info'
         error_details_key = 'error_details'
         try:
-            error_message_text = f"{get_message(error_msg_key, user_id)}\\n{get_message(error_details_key, user_id)}{str(e)}"
-        except Exception:
-             error_message_text = f"An error occurred in draw: {str(e)}"
-
+            error_message_text = f"{get_message(error_msg_key, user_id)}\n{get_message(error_details_key, user_id)}{str(e_outer)}"
+        except Exception: 
+             error_message_text = f"gemini_draw 中发生意外错误: {str(e_outer)}"
+        
         if sent_message:
-            await bot.edit_message_text(
-                error_message_text,
-                chat_id=sent_message.chat.id,
-                message_id=sent_message.message_id
-            )
+            try:
+                await bot.edit_message_text(error_message_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            except Exception as e_final_error_edit:
+                print(f"gemini_draw: 编辑最终错误消息失败: {e_final_error_edit}")
         else:
-            await bot.reply_to(message, error_message_text)
+            try:
+                await bot.reply_to(message, error_message_text)
+            except Exception as e_final_error_reply:
+                print(f"gemini_draw: 回复最终错误消息失败: {e_final_error_reply}")
