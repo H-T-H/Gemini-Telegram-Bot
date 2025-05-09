@@ -387,7 +387,9 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                     print("通过首条消息设置系统提示（普通模式）")
                     try:
                         # 尝试通过首条消息设置系统指令
-                        _ = chat_session.send_message(f"系统指令: {system_instruction}")
+                        system_message = f"你是一个AI助手，请遵循以下系统指令：\n\n{system_instruction}"
+                        # 使用普通的 send_message 而不是流式的
+                        await chat_session.send_message(system_message)
                         print("系统提示通过首条消息设置成功")
                     except Exception as e_sys_msg:
                         print(f"通过首条消息设置系统提示失败: {e_sys_msg}")
