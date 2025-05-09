@@ -1,4 +1,5 @@
-import google.generativeai as genai
+from google import genai
+from google.genai import types # Keep this for future use with new SDK
 # Remove explicit imports of types which might not exist in the installed version
 # from google.generativeai.types import SafetySetting, GenerateContentConfig, HarmCategory, BlockThreshold
 
@@ -86,7 +87,7 @@ command_descriptions = {
 conf = {
     "model_1": "gemini-2.5-flash-preview-04-17",
     "model_2": "gemini-2.5-pro-exp-03-25",
-    "model_3": "gemini-2.0-flash-preview-image-generation", #for draw, updated model name
+    "model_3": "gemini-2.0-flash-exp", #for draw, reverted as per user request
     "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
     "default_language": "zh"  # 默认语言
 }

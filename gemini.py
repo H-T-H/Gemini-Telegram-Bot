@@ -8,8 +8,22 @@ from telebot.types import Message
 from md2tgmd import escape
 from telebot import TeleBot
 from config import conf, generation_config, messages, safety_settings # Ensure safety_settings is imported
-import google.generativeai as genai # Use alias for consistency
+from google import genai
+from google.genai import types
 from typing import Optional
+
+# Module-level client instance and setter for the new SDK
+gemini_client = None
+
+def set_gemini_client(client_instance):
+    """Sets the global genai.Client instance for this module."""
+    global gemini_client
+    gemini_client = client_instance
+    if gemini_client:
+        print("Gemini client instance set successfully in gemini.py")
+    else:
+        # This could be problematic if not intentional
+        print("Warning: Attempted to set a None client in gemini.py (gemini_client is None)")
 
 # --- System Prompt Management ---
 SYSTEM_PROMPT_FILE = "system_prompt.txt"
@@ -87,154 +101,150 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
     user_id = message.from_user.id
     sent_message = None
     try:
+        if not gemini_client:
+            error_text = "CRITICAL ERROR: Gemini client not initialized in gemini.py. Please check main.py setup."
+            print(error_text)
+            await bot.reply_to(message, error_text)
+            return
+
         sent_message = await bot.reply_to(message, get_message("generating_answers", user_id))
 
         chat_session_dict = gemini_chat_dict if model_type == model_1 else gemini_pro_chat_dict
-        
-        if str(user_id) not in chat_session_dict:
-            print(f"Creating new chat for {user_id} with system prompt: {current_system_prompt}")
-            
-            # 尝试创建模型实例，并处理各种库版本差异
+        user_id_str = str(user_id)
+
+        # Prepare the configuration for the send_message_stream call
+        # This config will include system_instruction, safety_settings, and generation_config parameters
+        pydantic_config_params = {}
+        if current_system_prompt:
+            pydantic_config_params['system_instruction'] = current_system_prompt
+
+        if safety_settings: # Global safety_settings from config.py
             try:
-                # 构建一个带有系统提示的模型配置
-                model_config = {
-                    "model_name": model_type,
-                    "generation_config": generation_config
-                }
-                
-                # 如果有系统提示，添加它
-                if current_system_prompt:
-                    model_config["system_instruction"] = current_system_prompt
-                
-                # 如果有安全设置，添加它
-                if safety_settings:
-                    model_config["safety_settings"] = safety_settings
-                
-                # 尝试创建模型
-                model = genai.GenerativeModel(**model_config)
-                
-                # 尝试启动聊天会话
-                try:
-                    # 如果支持异步API，使用它
-                    if hasattr(model, "start_chat"):
-                        chat = model.start_chat(history=[])
-                    else:
-                        # 如果不支持聊天会话，使用生成内容API
-                        # 这是一个降级方案，可能无法保持上下文
-                        chat = model
-                    
-                    chat_session_dict[str(user_id)] = chat
-                except Exception as chat_err:
-                    print(f"Error starting chat: {chat_err}")
-                    # 降级为简单模型
-                    chat = model
-                    chat_session_dict[str(user_id)] = chat
-            except Exception as model_err:
-                print(f"Error creating model: {model_err}")
-                await bot.edit_message_text(
-                    f"Error creating model: {str(model_err)}",
-                    chat_id=sent_message.chat.id,
-                    message_id=sent_message.message_id
-                )
+                # Ensure safety_settings are converted to list of types.SafetySetting if they are dicts
+                formatted_safety_settings = []
+                for ss_item in safety_settings:
+                    if isinstance(ss_item, dict):
+                        formatted_safety_settings.append(types.SafetySetting(**ss_item))
+                    elif isinstance(ss_item, types.SafetySetting):
+                        formatted_safety_settings.append(ss_item)
+                    # else: ignore or log warning for unexpected type
+                if formatted_safety_settings:
+                    pydantic_config_params['safety_settings'] = formatted_safety_settings
+            except Exception as e_ss_format:
+                print(f"Warning: Could not format safety_settings: {e_ss_format}. Safety settings may not be applied.")
+
+        # Merge global generation_config (from config.py, currently an empty dict)
+        if generation_config: # This is the global one from config.py
+            pydantic_config_params.update(generation_config) # example: temperature, max_output_tokens etc.
+        
+        gen_config_for_api = None
+        if pydantic_config_params: # Only create if there are params
+            try:
+                gen_config_for_api = types.GenerateContentConfig(**pydantic_config_params)
+            except Exception as e_conf_create:
+                print(f"Error creating GenerateContentConfig from params: {pydantic_config_params}. Error: {e_conf_create}")
+                # Fallback: send without this specific GenerateContentConfig if creation fails
+                # Alternatively, could construct a default/empty one or re-raise
+
+        chat_session = None
+        if user_id_str not in chat_session_dict:
+            print(f"Creating new chat for {user_id_str} with model {model_type}.")
+            # For the new SDK, system_instruction is part of GenerateContentConfig passed to send_message.
+            # History can be passed here if needed for new chats.
+            try:
+                chat_session = await gemini_client.aio.chats.create(model=model_type, history=[]) # history can be prepopulated if needed
+                chat_session_dict[user_id_str] = chat_session
+            except Exception as e_create_chat:
+                print(f"Error creating chat session for {user_id_str} with model {model_type}: {e_create_chat}")
+                await bot.edit_message_text(f"Error creating chat session: {e_create_chat}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
                 return
         else:
-            chat = chat_session_dict[str(user_id)]
+            chat_session = chat_session_dict[user_id_str]
 
-        # 尝试发送消息并处理响应
+        # Send message using the new SDK's chat session
         try:
-            # 尝试使用流式API，如果可用
-            if hasattr(chat, "send_message_async"):
-                response_stream = await chat.send_message_async(m, stream=True)
-                
-                full_response = ""
-                last_update = time.time()
-                update_interval = conf["streaming_update_interval"]
+            print(f"Sending message with config: {gen_config_for_api}")
+            response_stream = await chat_session.send_message_stream(message=m, config=gen_config_for_api)
+            
+            full_response = ""
+            last_update = time.time()
+            update_interval = conf.get("streaming_update_interval", 0.5)
 
-                async for chunk in response_stream:
-                    if hasattr(chunk, 'text') and chunk.text:
-                        full_response += chunk.text
-                        current_time = time.time()
-
-                        if current_time - last_update >= update_interval:
-                            try:
-                                await bot.edit_message_text(
-                                    escape(full_response),
-                                    chat_id=sent_message.chat.id,
-                                    message_id=sent_message.message_id,
-                                    parse_mode="MarkdownV2"
-                                )
-                            except Exception as e:
-                                if "parse markdown" in str(e).lower():
+            async for chunk in response_stream:
+                if hasattr(chunk, 'text') and chunk.text:
+                    full_response += chunk.text
+                    current_time = time.time()
+                    if current_time - last_update >= update_interval:
+                        try:
+                            await bot.edit_message_text(
+                                escape(full_response), # Ensure md2tgmd escape is still relevant
+                                chat_id=sent_message.chat.id,
+                                message_id=sent_message.message_id,
+                                parse_mode="MarkdownV2"
+                            )
+                        except Exception as e_edit:
+                            if "message is not modified" not in str(e_edit).lower():
+                                # Attempt to send without MarkdownV2 if parsing fails
+                                try:
                                     await bot.edit_message_text(
                                         full_response,
                                         chat_id=sent_message.chat.id,
                                         message_id=sent_message.message_id
                                     )
-                                elif "message is not modified" not in str(e).lower():
-                                    print(f"Error updating message: {e}")
-                            last_update = current_time
-            else:
-                # 如果不支持流式API，使用普通API
-                print("Streaming not available, using standard API")
-                if hasattr(chat, "send_message"):
-                    response = chat.send_message(m)
-                elif hasattr(chat, "generate_content"):
-                    response = chat.generate_content(m)
-                else:
-                    raise Exception("Neither send_message nor generate_content methods available")
-                
-                # 处理响应
-                full_response = ""
-                if hasattr(response, "text"):
-                    full_response = response.text
-                elif hasattr(response, "parts") and len(response.parts) > 0:
-                    for part in response.parts:
-                        if hasattr(part, "text"):
-                            full_response += part.text
+                                except Exception as e_edit_plain:
+                                    print(f"Error updating message (plain): {e_edit_plain}")
+                            # else: ignore "message not modified"
+                        last_update = current_time
             
-            # 最终更新消息
+            # Final update for the message
+            final_text_to_send = escape(full_response) if full_response else "No content generated."
             try:
                 await bot.edit_message_text(
-                    escape(full_response) if full_response else "No content generated.",
+                    final_text_to_send,
                     chat_id=sent_message.chat.id,
                     message_id=sent_message.message_id,
                     parse_mode="MarkdownV2"
                 )
-            except Exception as e:
-                if "parse markdown" in str(e).lower():
+            except Exception as e_final_md:
+                if "parse markdown" in str(e_final_md).lower() or "message is not modified" not in str(e_final_md).lower():
                     await bot.edit_message_text(
                         full_response if full_response else "No content generated.",
                         chat_id=sent_message.chat.id,
                         message_id=sent_message.message_id
                     )
-                elif "message is not modified" not in str(e).lower():
-                    traceback.print_exc()
-        except Exception as stream_err:
-            print(f"Error in streaming: {stream_err}")
-            await bot.edit_message_text(
-                f"Error processing response: {str(stream_err)}",
-                chat_id=sent_message.chat.id,
-                message_id=sent_message.message_id
-            )
+                else:
+                    print(f"Error on final edit (MarkdownV2): {e_final_md}") # Log other errors
+        
+        except types.BlockedPromptException as bpe: # Specific error for new SDK from docs (may be errors.APIError or sub-class)
+            print(f"Prompt blocked for user {user_id_str}: {bpe}")
+            await bot.edit_message_text(f"Your request was blocked by safety settings. Details: {bpe.args[0] if bpe.args else 'Blocked'}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+        except genai.types.StopCandidateException as sce: # if generation stops due to model instruction
+            print(f"Generation stopped by model for user {user_id_str}: {sce}")
+            await bot.edit_message_text(f"Content generation stopped as instructed. {sce.args[0] if sce.args else ''}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+        except Exception as e_send:
+            print(f"Error sending message or processing stream for user {user_id_str}: {e_send}")
+            traceback.print_exc()
+            await bot.edit_message_text(f"Error processing your request: {e_send}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
 
-    except Exception as e:
+    except Exception as e_outer:
         traceback.print_exc()
         error_msg_key = 'error_info'
         error_details_key = 'error_details'
-        # Attempt to get localized error messages
         try:
-            error_message_text = f"{get_message(error_msg_key, user_id)}\n{get_message(error_details_key, user_id)}{str(e)}"
-        except Exception: # Fallback if get_message fails (e.g., during init)
-             error_message_text = f"An error occurred: {str(e)}"
+            error_message_text = f"{get_message(error_msg_key, user_id)}\n{get_message(error_details_key, user_id)}{str(e_outer)}"
+        except Exception: 
+             error_message_text = f"An unexpected error occurred: {str(e_outer)}"
 
         if sent_message:
-            await bot.edit_message_text(
-                error_message_text,
-                chat_id=sent_message.chat.id,
-                message_id=sent_message.message_id
-            )
+            try:
+                await bot.edit_message_text(error_message_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            except Exception as e_final_error_edit:
+                print(f"Failed to edit message with final error: {e_final_error_edit}")
         else:
-            await bot.reply_to(message, error_message_text)
+            try:
+                await bot.reply_to(message, error_message_text)
+            except Exception as e_final_error_reply:
+                 print(f"Failed to send final error reply: {e_final_error_reply}")
 
 async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes):
     user_id = message.from_user.id
