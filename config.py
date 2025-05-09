@@ -18,7 +18,12 @@ messages = {
         "generating_answers": "🤖 正在生成回答...",
         "error_details": "错误详情: ",
         "language_switched": "已切换到中文",
-        "language_usage_tip": "使用 /language 命令切换语言（中文/英文）"
+        "language_usage_tip": "使用 /language 命令切换语言（中文/英文）",
+        "system_prompt_set_usage": "请在 /set_system_prompt 后添加您的系统提示词。\n例如：`/set_system_prompt 你是一个乐于助人的助手。`",
+        "system_prompt_set_success": "✅ 系统提示词已设置并应用。后续对话将使用新的提示词。",
+        "system_prompt_current": "ℹ️ 当前系统提示词为：",
+        "system_prompt_not_set": "ℹ️ 当前未设置系统提示词。",
+        "system_prompt_deleted_success": "✅ 系统提示词已删除。后续对话将不使用系统提示词。"
     },
     "en": {  # 英文消息
         "error_info": "⚠️⚠️⚠️\nSomething went wrong!\nPlease try to change your prompt or contact the admin!",
@@ -36,7 +41,12 @@ messages = {
         "generating_answers": "🤖 Generating answers...",
         "error_details": "Error details: ",
         "language_switched": "Switched to English",
-        "language_usage_tip": "Use /language command to switch language (Chinese/English)"
+        "language_usage_tip": "Use /language command to switch language (Chinese/English)",
+        "system_prompt_set_usage": "Please add your system prompt after /set_system_prompt.\nFor example: `/set_system_prompt You are a helpful assistant.`",
+        "system_prompt_set_success": "✅ System prompt has been set and applied. Subsequent conversations will use the new prompt.",
+        "system_prompt_current": "ℹ️ Current system prompt is:",
+        "system_prompt_not_set": "ℹ️ No system prompt is currently set.",
+        "system_prompt_deleted_success": "✅ System prompt has been deleted. Subsequent conversations will not use a system prompt."
     }
 }
 
@@ -50,7 +60,10 @@ command_descriptions = {
         "edit": "编辑照片",
         "clear": "清除所有历史记录",
         "switch": "切换默认模型",
-        "language": "切换语言(中文/英文)"
+        "language": "切换语言(中文/英文)",
+        "set_system_prompt": "设置系统提示词",
+        "view_system_prompt": "查看当前系统提示词",
+        "delete_system_prompt": "删除当前系统提示词"
     },
     "en": {  # 英文命令描述
         "start": "Start",
@@ -60,7 +73,10 @@ command_descriptions = {
         "edit": "edit photo",
         "clear": "Clear all history",
         "switch": "switch default model",
-        "language": "switch language(Chinese/English)"
+        "language": "switch language(Chinese/English)",
+        "set_system_prompt": "Set the system prompt",
+        "view_system_prompt": "View the current system prompt",
+        "delete_system_prompt": "Delete the current system prompt"
     }
 }
 
