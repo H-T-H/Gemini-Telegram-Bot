@@ -182,6 +182,8 @@ async def gemini_edit_handler(message: Message, bot: TeleBot) -> None: # This mi
     await gemini.gemini_edit(bot, message, command_text, photo_file)
 
 async def draw_handler(message: Message, bot: TeleBot) -> None:
+    # 使用 model_3 通过聊天会话生成图像
+    # 不使用专用的图像生成 API，而是通过常规聊天功能检测并返回 inline_data
     user_id = message.from_user.id
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
@@ -189,4 +191,4 @@ async def draw_handler(message: Message, bot: TeleBot) -> None:
         await bot.reply_to(message, escape(gemini.get_message("draw_usage_tip", user_id)), parse_mode="MarkdownV2")
         return
     
-    await gemini.gemini_draw(bot, message, m) # Removed pre-emptive "drawing..." message logic here, as gemini_draw handles it
+    await gemini.gemini_draw(bot, message, m)

@@ -50,6 +50,7 @@ def save_system_prompt(text: Optional[str]):
     # Clear all chat histories because system prompt change invalidates them
     gemini_chat_dict.clear()
     gemini_pro_chat_dict.clear()
+    gemini_draw_dict.clear()  # 恢复此行
     # 移除不再使用的字典引用
     # gemini_draw_dict.clear() 
 
@@ -69,8 +70,9 @@ def save_system_prompt(text: Optional[str]):
 load_system_prompt()
 # --- End System Prompt Management ---
 
-# 移除不再使用的字典
+# 恢复不再使用的字典，实际上是需要的
 # gemini_draw_dict = {}
+gemini_draw_dict = {}
 gemini_chat_dict = {}
 gemini_pro_chat_dict = {}
 default_model_dict = {}
@@ -78,6 +80,7 @@ language_dict = {}  # 用户语言偏好字典
 
 model_1 = conf["model_1"]
 model_2 = conf["model_2"]
+model_3 = conf["model_3"]
 default_language = conf["default_language"]
 
 search_tool = {'google_search': {}} # Assuming this is correctly defined or None if not used
@@ -404,87 +407,107 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
 
         sent_message = await bot.reply_to(message, get_message("drawing", user_id))
         
-        # 从配置中获取 Imagen 模型名称和相关参数
-        imagen_model_to_use = conf.get("imagen_model_name", "imagen-3.0-generate-001") # 提供一个默认值
-        num_images = conf.get("draw_num_images", 1)
-        aspect_r = conf.get("draw_aspect_ratio", "1:1")
-        output_mime = conf.get("draw_output_mime_type", "image/png")
-
-        print(f"gemini_draw: 使用模型 {imagen_model_to_use} 进行绘图，提示: {m}")
-
-        # 准备 GenerateImagesConfig
-        # 注意：根据新SDK文档，一些参数如 safety_filter_level, person_generation 也可在此配置
-        # 为简化，我们暂时只使用基础参数，您可以稍后根据需求在 config.py 中添加更多配置项
+        user_id_str = str(user_id)
+        draw_model = model_3  # 使用配置中的 model_3
+        
+        print(f"gemini_draw: 使用模型 {draw_model} 生成图像，提示: {m}")
+        
+        # 准备配置
+        config_params = {}
+        if generation_config:
+            config_params.update(generation_config)
+        
+        # 添加安全设置
+        if safety_settings:
+            try:
+                formatted_safety_settings = []
+                for ss_item in safety_settings:
+                    if isinstance(ss_item, dict):
+                        formatted_safety_settings.append(types.SafetySetting(**ss_item))
+                    elif isinstance(ss_item, types.SafetySetting):
+                        formatted_safety_settings.append(ss_item)
+                if formatted_safety_settings:
+                    config_params['safety_settings'] = formatted_safety_settings
+            except Exception as e_ss:
+                print(f"警告: 格式化 safety_settings 出错: {e_ss}")
+        
+        gen_config = None
+        if config_params:
+            try:
+                gen_config = types.GenerateContentConfig(**config_params)
+            except Exception as e_conf:
+                print(f"错误: 创建 GenerateContentConfig 失败: {e_conf}")
+        
+        # 获取或创建聊天会话
         try:
-            img_gen_config = types.GenerateImagesConfig(
-                number_of_images=num_images,
-                aspect_ratio=aspect_r,
-                output_mime_type=output_mime
-                # 您可以在此处添加更多来自 types.GenerateImagesConfig 的参数
-                # 例如：safety_filter_level="BLOCK_LOW_AND_ABOVE", person_generation="ALLOW_ADULT"
-            )
-        except Exception as e_conf_create:
-            print(f"错误: 创建 GenerateImagesConfig 失败: {e_conf_create}")
-            await bot.edit_message_text(f"绘图配置错误: {str(e_conf_create)}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-            return
-
-        # 使用新的 SDK 客户端进行 API 调用
-        try:
-            print(f"gemini_draw: 调用模型 {imagen_model_to_use}，配置: {img_gen_config}")
-            response = await gemini_client.aio.models.generate_images(
-                model=imagen_model_to_use, 
-                prompt=m,
-                config=img_gen_config
-            )
-            
-            if response.generated_images:
-                if sent_message: # 删除 "正在绘制..." 消息
-                    try:
-                        await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-                    except Exception as e_del_msg:
-                        print(f"警告: 删除消息失败 (gemini_draw): {e_del_msg}")
-                    sent_message = None # 避免后续错误处理再次尝试编辑已删除消息
-                
-                for i, generated_image_obj in enumerate(response.generated_images):
-                    if hasattr(generated_image_obj, 'image') and hasattr(generated_image_obj.image, 'image_bytes') and generated_image_obj.image.image_bytes:
-                        image_data = generated_image_obj.image.image_bytes
-                        caption = f"🖼️ (#{i+1}): {m[:100]}" # 限制标题长度
-                        await bot.send_photo(message.chat.id, photo=image_data, caption=caption)
-                    else:
-                        print(f"gemini_draw: 生成的图像对象 {i+1} 缺少图像数据。")
-                        await bot.send_message(message.chat.id, f"图像 {i+1} 生成数据不完整。")
+            if user_id_str not in gemini_draw_dict:
+                print(f"创建新的绘图聊天会话 (用户: {user_id_str}) 为模型 {draw_model}")
+                chat = await gemini_client.aio.chats.create(
+                    model=draw_model
+                )
+                gemini_draw_dict[user_id_str] = chat
             else:
-                no_image_message = "未能生成图像。模型没有返回任何图像。"
-                # 检查是否有 RAI (Responsible AI) 阻止原因
-                # 新SDK的 GenerateImagesResponse 可能有不同的反馈结构，需要查阅
-                # 例如，文档中 generate_images 的 config 有 include_rai_reason=True
-                # 响应中可能有 response.positive_prompt_safety_attributes 或类似字段
-                # 此处简化处理，实际应检查 response 结构以获取更详细的失败原因
-                if hasattr(response, 'prompt_feedback') and response.prompt_feedback.block_reason: # 借用 generate_content 的结构，可能不适用
-                    no_image_message += f" 原因: {response.prompt_feedback.block_reason_message or response.prompt_feedback.block_reason}"
-                
-                if sent_message:
-                    await bot.edit_message_text(no_image_message, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-                else:
-                    await bot.reply_to(message, no_image_message)
-
-        except Exception as e_gen_images:
-            print(f"gemini_draw: generate_images 过程中出错: {e_gen_images}")
-            traceback.print_exc()
-            error_message = str(e_gen_images).lower()
+                chat = gemini_draw_dict[user_id_str]
             
-            # 根据异常消息判断异常类型
-            if "block" in error_message or "safety" in error_message or "harm" in error_message:
-                error_text = f"您的绘图请求因安全设置被阻止。详情: {str(e_gen_images)}"
-            elif "deadline" in error_message or "timeout" in error_message or "exceed" in error_message:
-                error_text = "图像生成超时。请尝试更简单的提示或稍后再试。"
-            else:
-                error_text = f"处理您的绘图请求时出错: {str(e_gen_images)}"
+            # 发送消息
+            print(f"发送绘图提示给模型 '{draw_model}': '{m}'，配置: {gen_config}")
+            response = await chat.send_message(m, config=gen_config)
             
-            if sent_message: 
-                await bot.edit_message_text(error_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            # 检查是否有消息需要删除
+            if sent_message:
+                try:
+                    await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                except Exception as e_del:
+                    print(f"警告: 删除临时消息失败: {e_del}")
                 sent_message = None
-            else: 
+            
+            # 处理响应
+            has_content = False
+            if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    # 文本部分
+                    if hasattr(part, "text") and part.text:
+                        text = part.text
+                        # 分段发送长文本
+                        while len(text) > 4000:
+                            try:
+                                await bot.send_message(message.chat.id, escape(text[:4000]), parse_mode="MarkdownV2")
+                            except Exception as e_md:
+                                await bot.send_message(message.chat.id, text[:4000])
+                            text = text[4000:]
+                        if text:
+                            try:
+                                await bot.send_message(message.chat.id, escape(text), parse_mode="MarkdownV2")
+                            except Exception as e_md:
+                                await bot.send_message(message.chat.id, text)
+                        has_content = True
+                    
+                    # 图片部分
+                    elif hasattr(part, "inline_data") and part.inline_data:
+                        if hasattr(part.inline_data, "data") and part.inline_data.data:
+                            photo = part.inline_data.data
+                            await bot.send_photo(message.chat.id, photo, caption=f"🖼️: {m[:100]}")
+                            has_content = True
+                        else:
+                            print("inline_data 存在但没有 data 属性或为空")
+            
+            if not has_content:
+                print("响应没有包含文本或图片内容")
+                await bot.send_message(message.chat.id, "模型未能生成有效的图片或文本。请尝试不同的提示词。")
+            
+        except Exception as e_chat:
+            print(f"绘图过程中出错: {e_chat}")
+            traceback.print_exc()
+            
+            error_message = str(e_chat).lower()
+            if "block" in error_message or "safety" in error_message or "harm" in error_message:
+                error_text = f"您的绘图请求因安全设置被阻止。详情: {str(e_chat)}"
+            else:
+                error_text = f"绘图过程中出错: {str(e_chat)}"
+            
+            if sent_message:
+                await bot.edit_message_text(error_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+            else:
                 await bot.reply_to(message, error_text)
 
     except Exception as e_outer:
