@@ -175,9 +175,9 @@ async def _gemini_search(bot:TeleBot, message:Message, m:str):
             del gen_conf_params['safety_settings']
             print("从配置中移除 safety_settings 参数")
         
-        # 移除所有可能包含 safety 的参数
+        # 移除所有可能包含 safety 的参数和 temperature 参数
         for key in list(gen_conf_params.keys()):
-            if 'safety' in key.lower():
+            if 'safety' in key.lower() or key == 'temperature':
                 del gen_conf_params[key]
                 print(f"从配置中移除可能不兼容的参数: {key}")
         
@@ -186,11 +186,17 @@ async def _gemini_search(bot:TeleBot, message:Message, m:str):
             # 尝试直接使用 google_search 工具
             print(f"尝试使用搜索工具进行一次性查询: {m[:100]}...")
             
-            # 方式1：通过 generate_content 传递工具
+            # 修改：使用新的方式添加搜索工具
+            # 创建 GoogleSearch 对象
+            google_search = types.GoogleSearch()
+            # 创建 Tool 对象
+            search_tool = types.Tool(google_search=google_search)
+            
+            # 使用新的 API 方式调用
             response = await gemini_client.aio.models.generate_content(
                 model=search_model,
                 contents=m,
-                tools=[types.Tool(google_search=types.GoogleSearch())],
+                tools=[search_tool],  # 使用正确的 tools 参数格式
                 **gen_conf_params
             )
             
@@ -528,13 +534,20 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             # 新 SDK 流式响应
             response_stream = None
             
-            # 直接传递配置参数给 send_message_stream，不使用 SendMessageConfig
+            # 创建不包含 temperature 的配置参数字典
+            stream_params = {}
+            for key, value in gen_conf_params.items():
+                if key not in ["temperature"]:  # 排除 temperature 参数
+                    stream_params[key] = value
+            
+            print(f"gemini_stream: 流式发送使用的参数: {stream_params}")
+            
             # 如果是字符串消息
             if isinstance(current_message, str):
                 try:
                     response_stream = chat_session.send_message_stream(
                         message=current_message,
-                        **gen_conf_params  # 直接展开配置参数
+                        **stream_params  # 使用不包含 temperature 的参数
                     )
                 except Exception as e_send:
                     print(f"发送消息时出错: {e_send}")
@@ -552,7 +565,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                 try:
                     response_stream = chat_session.send_message_stream(
                         message=str(current_message),  # 尝试转换为字符串
-                        **gen_conf_params  # 直接展开配置参数
+                        **stream_params  # 使用不包含 temperature 的参数
                     )
                 except Exception as e_send:
                     print(f"Error sending non-string message: {e_send}")
@@ -641,7 +654,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                                 try:
                                     final_response = await chat_session.send_message(
                                         message=current_message,
-                                        **gen_conf_params
+                                        **stream_params  # 使用不包含 temperature 的参数
                                     )
                                     if hasattr(final_response, "text") and final_response.text:
                                         accumulated_text = final_response.text
@@ -791,9 +804,9 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
                 if not any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
                     config_params[key] = value
         
-        # 确保不包含安全设置相关参数
+        # 确保不包含安全设置相关参数和 temperature 参数
         for key in list(config_params.keys()):
-            if any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
+            if any(x in key.lower() for x in ["safety", "mime", "type", "response"]) or key == "temperature":
                 del config_params[key]
                 print(f"gemini_edit: 从配置中移除可能不兼容的参数: {key}")
         
@@ -1000,8 +1013,8 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
             # 确认 config_params 中没有包含任何可能不兼容的参数
             params_to_use = {}
             for key, value in config_params.items():
-                # 过滤掉任何可能与 mime、response、safety 相关的参数
-                if not any(x in key.lower() for x in ["mime", "type", "response", "output", "safety"]):
+                # 过滤掉任何可能与 mime、response、safety 相关的参数以及 temperature 参数
+                if not any(x in key.lower() for x in ["mime", "type", "response", "output", "safety"]) and key != "temperature":
                     params_to_use[key] = value
             
             if len(params_to_use) != len(config_params):
@@ -1213,16 +1226,16 @@ async def perform_standalone_search(query: str) -> str:
         if generation_config: 
             # 仅添加兼容参数
             for key, value in generation_config.items():
-                if not any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
+                if not any(x in key.lower() for x in ["safety", "mime", "type", "response"]) and key != "temperature":
                     gen_conf_params[key] = value
         
         print(f"搜索使用的生成配置参数: {gen_conf_params}")
         
         # 不需要添加系统提示，使搜索更加客观
         
-        # 确保不包含安全设置相关参数
+        # 确保不包含安全设置相关参数和 temperature 参数
         for key in list(gen_conf_params.keys()):
-            if any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
+            if any(x in key.lower() for x in ["safety", "mime", "type", "response"]) or key == "temperature":
                 del gen_conf_params[key]
                 print(f"perform_standalone_search: 从配置中移除可能不兼容的参数: {key}")
         
@@ -1256,13 +1269,15 @@ async def perform_standalone_search(query: str) -> str:
         
         print(f"最终搜索提示: {search_prompt[:200]}...")
         
-        # 设置搜索工具
-        search_tool = types.Tool(google_search=types.GoogleSearch())
+        # 设置搜索工具 - 使用新的 API 方式
+        google_search = types.GoogleSearch()
+        search_tool = types.Tool(google_search=google_search)
         print("已创建 Google 搜索工具对象")
         
         # 使用高温度参数以获取更多元化的回答
-        if 'temperature' not in gen_conf_params:
-            gen_conf_params['temperature'] = 0.9
+        search_params = gen_conf_params.copy()  # 创建一个副本，用于存储搜索特定参数
+        if 'temperature' not in search_params:
+            search_params['temperature'] = 0.9
             print("设置搜索温度为 0.9")
         
         try:
@@ -1271,8 +1286,8 @@ async def perform_standalone_search(query: str) -> str:
             response = await gemini_client.aio.models.generate_content(
                 model=model_1,  # 使用默认模型
                 contents=search_prompt,
-                tools=[search_tool],
-                **gen_conf_params
+                tools=[search_tool],  # 使用正确的工具对象
+                **gen_conf_params  # 不包含 temperature 的参数
             )
             print("搜索请求成功完成，正在处理结果")
             # 打印模型响应类型和属性，帮助诊断
@@ -1313,7 +1328,7 @@ async def perform_standalone_search(query: str) -> str:
                 response = await gemini_client.aio.models.generate_content(
                     model=model_1,  # 使用默认模型
                     contents=fallback_prompt,
-                    **gen_conf_params
+                    **gen_conf_params  # 不包含 temperature 的参数
                 )
                 print("使用替代方法完成搜索")
             except Exception as e_fallback:
@@ -1376,7 +1391,8 @@ async def test_search_capability(bot: TeleBot, message: Message):
         # 1. 测试搜索工具创建
         try:
             print("\n===== 测试 #1: 创建搜索工具对象 =====")
-            search_tool = types.Tool(google_search=types.GoogleSearch())
+            google_search = types.GoogleSearch()
+            search_tool = types.Tool(google_search=google_search)
             await bot.edit_message_text(
                 "步骤 1/4: ✅ 成功创建搜索工具对象", 
                 chat_id=sent_message.chat.id, 
@@ -1423,8 +1439,7 @@ async def test_search_capability(bot: TeleBot, message: Message):
                     await gemini_client.aio.models.generate_content(
                         model=test_model,
                         contents="测试查询",
-                        tools=[search_tool],
-                        temperature=0.2,
+                        tools=[search_tool],  # 使用正确的工具对象
                         # 最小化token使用
                         max_output_tokens=10
                     )
@@ -1482,8 +1497,10 @@ async def test_search_capability(bot: TeleBot, message: Message):
             response = await gemini_client.aio.models.generate_content(
                 model=supported_model,
                 contents=f"请执行网络搜索并回答: {test_query}。必须包含你是如何获取这个信息的详细说明。",
-                tools=[search_tool],
-                temperature=0.2
+                tools=[search_tool],  # 使用正确的工具对象
+                # 移除 temperature 参数
+                # 使用支持的参数
+                max_output_tokens=1024  # 使用合理的输出长度
             )
             
             # 分析响应
