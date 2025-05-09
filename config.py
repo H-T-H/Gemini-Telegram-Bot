@@ -112,6 +112,7 @@ safety_settings = [
 
 # 同样使用字典定义生成配置
 generation_config = {
-    "response_modalities": ['Text'],
+    # 移除可能不兼容的响应模态设置
+    # "response_modalities": ['Text'],
     "safety_settings": safety_settings,
 }
