@@ -1003,7 +1003,7 @@ async def perform_standalone_search(query: str) -> str:
         
         # 不需要添加系统提示，使搜索更加客观
         
-        # 添加安全设置
+        # 添加安全设置 - 在 generate_content 调用中是有效的
         if formatted_safety_settings:
             gen_conf_params['safety_settings'] = formatted_safety_settings
         
