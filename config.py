@@ -87,14 +87,13 @@ command_descriptions = {
 conf = {
     "model_1": "gemini-2.5-flash-preview-04-17",
     "model_2": "gemini-2.5-pro-exp-03-25",
-    "model_3": "gemini-2.0-flash-exp", # 用于绘图功能，通过聊天会话生成图像
+    "model_3": "gemini-2.0-flash-preview-image-generation", # 更新为图像生成预览模型
     
-    # 注意: 我们不使用专用的图像生成 API，而是通过常规聊天功能生成图像
-    # 以下配置项已不再使用，但保留以供参考
-    "imagen_model_name": "serviceapi-imagegen@001", # 不再使用
-    "draw_num_images": 1, # 不再使用
-    "draw_aspect_ratio": "1:1", # 不再使用
-    "draw_output_mime_type": "image/png", # 不再使用
+    # 以下配置项在新的图像生成方法中不再直接使用，但保留注释以供参考
+    "imagen_model_name": "serviceapi-imagegen@001", 
+    "draw_num_images": 1, 
+    "draw_aspect_ratio": "1:1", 
+    "draw_output_mime_type": "image/png", 
     
     "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
     "default_language": "zh"  # 默认语言
