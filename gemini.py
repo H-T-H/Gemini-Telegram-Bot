@@ -877,15 +877,20 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
 
         sent_message = await bot.reply_to(message, get_message("drawing", user_id))
         
+        # 确保我们使用的是支持图像生成的模型
         draw_model_name = model_3  # 使用配置中的 model_3
+        
+        # 检查配置中是否有专门的图像生成模型
+        if hasattr(conf, "imagen_model_name") and conf["imagen_model_name"]:
+            draw_model_name = conf["imagen_model_name"]
+            print(f"使用专门的图像生成模型: {draw_model_name}")
         
         print(f"gemini_draw: 使用模型 {draw_model_name} 生成内容 (文本+图像)，提示: {m}")
         
         # 准备专门用于图像生成的配置
-        config_params = {
-            # 移除不支持的参数 "response_mime_type": "image/png"
-            # 新版 SDK 可能使用其他方法指定响应类型
-        }
+        config_params = {}
+        
+        # 确保不使用 conf["draw_output_mime_type"]
         
         # 尝试使用生成图像的提示前缀
         image_prompt = f"请根据以下描述生成一张图片。确保返回的是图像数据，而不仅仅是文本描述：\n\n{m}"
@@ -896,10 +901,17 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
             # 仅合并全局配置中与 GenerateContentConfig 兼容的已知参数
             compatible_global_config = {}
             for key, value in generation_config.items():
-                if key in ["temperature", "top_p", "top_k", "max_output_tokens", "candidate_count", "stop_sequences"]:
+                # 确保不包含任何与 mime_type 相关的参数
+                if key in ["temperature", "top_p", "top_k", "max_output_tokens", "candidate_count", "stop_sequences"] and "mime" not in key.lower():
                     compatible_global_config[key] = value
             if compatible_global_config:
                 config_params.update(compatible_global_config)
+                
+        # 检查并确保 config_params 不包含任何可能的 mime 类型参数
+        for key in list(config_params.keys()):
+            if "mime" in key.lower() or "type" in key.lower():
+                print(f"警告: 移除不兼容的参数 '{key}'")
+                del config_params[key]
 
         # 添加安全设置
         if safety_settings:
@@ -919,11 +931,21 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
         try:
             print(f"调用模型 '{draw_model_name}' generate_content，提示: '{image_prompt[:100]}...'，配置参数: {config_params}")
             
+            # 确认 config_params 中没有包含任何可能不兼容的参数
+            params_to_use = {}
+            for key, value in config_params.items():
+                # 过滤掉任何可能与 mime 或 response 类型相关的参数
+                if not any(x in key.lower() for x in ["mime", "type", "response", "output"]):
+                    params_to_use[key] = value
+            
+            if len(params_to_use) != len(config_params):
+                print(f"警告: 过滤掉了 {len(config_params) - len(params_to_use)} 个可能不兼容的参数")
+            
             # 使用新的 SDK API 调用，直接传递配置参数，使用增强的提示
             response = await gemini_client.aio.models.generate_content(
                 model=draw_model_name,
                 contents=image_prompt,  # 使用专门针对图像生成的提示
-                **config_params  # 直接展开配置参数
+                **params_to_use  # 使用过滤后的参数
             )
             
             # 检查是否有临时消息需要删除
