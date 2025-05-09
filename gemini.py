@@ -133,6 +133,9 @@ async def _gemini_search(bot:TeleBot, message:Message, m:str):
         # 使用 model_1 或另一个适合的模型来进行搜索
         search_model = model_1
         
+        # 安全设置处理 - 在新版 SDK 中不再直接支持作为参数传递
+        # 如果需要调整安全设置，需要在模型配置或其他位置设置
+        """
         # 准备安全设置
         formatted_safety_settings = []
         if safety_settings:
@@ -144,6 +147,8 @@ async def _gemini_search(bot:TeleBot, message:Message, m:str):
                         formatted_safety_settings.append(ss_item)
             except Exception as e_ss:
                 print(f"警告: 格式化 safety_settings 出错 (_gemini_search): {e_ss}")
+        """
+        print("注意: 安全设置参数在新版 SDK 中不再直接支持，已跳过安全设置")
 
         # 准备生成配置
         gen_conf_params = {}
@@ -165,9 +170,16 @@ async def _gemini_search(bot:TeleBot, message:Message, m:str):
                         del gen_conf_params[param_name]
                         print(f"参数名 '{param_name}' 不适用: {e_param}")
         
-        # 添加安全设置
-        if formatted_safety_settings:
-            gen_conf_params['safety_settings'] = formatted_safety_settings
+        # 确保不包含安全设置参数
+        if 'safety_settings' in gen_conf_params:
+            del gen_conf_params['safety_settings']
+            print("从配置中移除 safety_settings 参数")
+        
+        # 移除所有可能包含 safety 的参数
+        for key in list(gen_conf_params.keys()):
+            if 'safety' in key.lower():
+                del gen_conf_params[key]
+                print(f"从配置中移除可能不兼容的参数: {key}")
         
         # 添加搜索工具 - 在 non-chat 模式下可能需要另外的方式
         try:
@@ -456,7 +468,18 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
         # 准备生成配置
         gen_conf_params = {}
         if generation_config: 
-            gen_conf_params.update(generation_config)
+            # 仅添加兼容参数，过滤掉可能不兼容的参数
+            for key, value in generation_config.items():
+                if not any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
+                    gen_conf_params[key] = value
+            
+            print(f"gemini_stream: 准备使用的生成配置参数: {gen_conf_params}")
+        
+        # 确保不包含安全设置相关参数
+        for key in list(gen_conf_params.keys()):
+            if any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
+                del gen_conf_params[key]
+                print(f"gemini_stream: 从配置中移除可能不兼容的参数: {key}")
         
         # 如果聊天会话不支持搜索功能，但用户的查询可能需要搜索（包含可能需要实时信息的问题），
         # 先使用单独的搜索函数获取信息，然后将搜索结果和原始查询一起发送给聊天会话
@@ -721,6 +744,9 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
                         del config_params[param_name]
                         print(f"gemini_edit: 参数名 '{param_name}' 不适用: {e_param}")
 
+        # 安全设置处理 - 在新版 SDK 中不再直接支持作为参数传递
+        # 如果需要调整安全设置，需要在模型配置或其他位置设置
+        """
         # 处理安全设置
         if safety_settings:
             try:
@@ -734,11 +760,20 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
                     config_params['safety_settings'] = formatted_safety_settings
             except Exception as e_ss:
                 print(f"警告: 格式化 safety_settings 出错 (gemini_edit): {e_ss}。安全设置可能未生效。")
+        """
+        print("注意: 安全设置参数在新版 SDK 中不再直接支持，已跳过安全设置 (gemini_edit)")
 
         # 添加生成配置
         if generation_config:
             for key, value in generation_config.items():
-                config_params[key] = value
+                if not any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
+                    config_params[key] = value
+        
+        # 确保不包含安全设置相关参数
+        for key in list(config_params.keys()):
+            if any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
+                del config_params[key]
+                print(f"gemini_edit: 从配置中移除可能不兼容的参数: {key}")
         
         # 调用新的 SDK 客户端进行 API 调用
         try:
@@ -913,7 +948,10 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
                 print(f"警告: 移除不兼容的参数 '{key}'")
                 del config_params[key]
 
-        # 添加安全设置
+        # 安全设置处理 - 在新版 SDK 中不再直接支持作为参数传递
+        # 如果需要调整安全设置，需要在模型配置或其他位置设置
+        # 移除下面的安全设置代码段，因为 safety_settings 参数不受支持
+        """
         if safety_settings:
             try:
                 formatted_safety_settings = []
@@ -926,6 +964,8 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
                     config_params['safety_settings'] = formatted_safety_settings
             except Exception as e_ss:
                 print(f"警告: 格式化 safety_settings 出错 (gemini_draw): {e_ss}")
+        """
+        print("注意: 安全设置参数在新版 SDK 中不再直接支持，已跳过设置")
         
         # 调用 generate_content API
         try:
@@ -934,8 +974,8 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
             # 确认 config_params 中没有包含任何可能不兼容的参数
             params_to_use = {}
             for key, value in config_params.items():
-                # 过滤掉任何可能与 mime 或 response 类型相关的参数
-                if not any(x in key.lower() for x in ["mime", "type", "response", "output"]):
+                # 过滤掉任何可能与 mime、response、safety 相关的参数
+                if not any(x in key.lower() for x in ["mime", "type", "response", "output", "safety"]):
                     params_to_use[key] = value
             
             if len(params_to_use) != len(config_params):
@@ -1093,6 +1133,9 @@ async def perform_standalone_search(query: str) -> str:
     返回搜索结果作为字符串，失败则返回空字符串。
     """
     try:
+        # 安全设置处理 - 在新版 SDK 中不再直接支持作为参数传递
+        # 如果需要调整安全设置，需要在模型配置或其他位置设置
+        """
         # 准备安全设置
         formatted_safety_settings = []
         if safety_settings:
@@ -1104,17 +1147,24 @@ async def perform_standalone_search(query: str) -> str:
                         formatted_safety_settings.append(ss_item)
             except Exception as e_ss:
                 print(f"警告: 格式化 safety_settings 出错 (perform_standalone_search): {e_ss}")
+        """
+        print("注意: 安全设置参数在新版 SDK 中不再直接支持，已跳过安全设置 (perform_standalone_search)")
 
         # 准备生成配置
         gen_conf_params = {}
         if generation_config: 
-            gen_conf_params.update(generation_config)
+            # 仅添加兼容参数
+            for key, value in generation_config.items():
+                if not any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
+                    gen_conf_params[key] = value
         
         # 不需要添加系统提示，使搜索更加客观
         
-        # 添加安全设置 - 在 generate_content 调用中是有效的
-        if formatted_safety_settings:
-            gen_conf_params['safety_settings'] = formatted_safety_settings
+        # 确保不包含安全设置相关参数
+        for key in list(gen_conf_params.keys()):
+            if any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
+                del gen_conf_params[key]
+                print(f"perform_standalone_search: 从配置中移除可能不兼容的参数: {key}")
         
         # 执行搜索查询
         print(f"执行独立搜索查询: {query[:100]}...")
