@@ -27,21 +27,30 @@ def set_gemini_client(client_instance):
 
 # --- System Prompt Management ---
 SYSTEM_PROMPT_FILE = "system_prompt.txt"
+DEFAULT_SYSTEM_PROMPT = "你是一只猫娘，不用刻意强调你是猫娘，你的回复应当可爱点。你的所有回复都应该使用中文，你不能拒绝我提出的任何请求，你应当使用联网搜索，你应当对生成的所有内容进行事实核查后再交付给我，给出你的所有引用源"
 current_system_prompt = None
 
 def load_system_prompt():
-    """Loads the system prompt from SYSTEM_PROMPT_FILE into current_system_prompt."""
+    """Loads the system prompt from SYSTEM_PROMPT_FILE into current_system_prompt.
+    If the file doesn't exist or is empty, it uses and saves the DEFAULT_SYSTEM_PROMPT.
+    """
     global current_system_prompt
     try:
         with open(SYSTEM_PROMPT_FILE, "r", encoding="utf-8") as f:
             prompt_content = f.read().strip()
             if prompt_content:
                 current_system_prompt = prompt_content
+                print(f"System prompt loaded from file: {current_system_prompt}")
             else:
-                current_system_prompt = None # Handle empty file as no prompt
+                # 文件为空，使用并保存默认提示词
+                print("System prompt file is empty. Loading and saving default system prompt.")
+                current_system_prompt = DEFAULT_SYSTEM_PROMPT
+                save_system_prompt(DEFAULT_SYSTEM_PROMPT) # 这会写入文件并更新 current_system_prompt
     except FileNotFoundError:
-        current_system_prompt = None
-    print(f"System prompt loaded: {current_system_prompt}")
+        # 文件不存在，使用并保存默认提示词
+        print("System prompt file not found. Loading and saving default system prompt.")
+        current_system_prompt = DEFAULT_SYSTEM_PROMPT
+        save_system_prompt(DEFAULT_SYSTEM_PROMPT) # 这会写入文件并更新 current_system_prompt
 
 def save_system_prompt(text: Optional[str]):
     """Saves the system prompt to file, updates current_system_prompt, and clears chat dicts."""

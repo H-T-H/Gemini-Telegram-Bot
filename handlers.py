@@ -121,8 +121,8 @@ async def gemini_private_handler(message: Message, bot: TeleBot) -> None:
     user_id = message.from_user.id
     m = message.text.strip()
     if str(user_id) not in default_model_dict:
-        default_model_dict[str(user_id)] = True
-        await gemini.gemini_stream(bot, message, m, model_1)
+        default_model_dict[str(user_id)] = False
+        await gemini.gemini_stream(bot, message, m, model_2)
     else:
         if default_model_dict[str(user_id)]:
             await gemini.gemini_stream(bot, message, m, model_1)
