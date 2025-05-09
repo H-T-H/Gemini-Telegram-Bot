@@ -11,7 +11,6 @@ model_2 = conf["model_2"]
 gemini_chat_dict = gemini.gemini_chat_dict
 gemini_pro_chat_dict = gemini.gemini_pro_chat_dict
 default_model_dict = gemini.default_model_dict
-gemini_draw_dict = gemini.gemini_draw_dict
 language_dict = gemini.language_dict
 
 # --- System Prompt Command Handlers ---
@@ -84,8 +83,6 @@ async def clear(message: Message, bot: TeleBot) -> None:
         del gemini_chat_dict[str(user_id)]
     if (str(user_id) in gemini_pro_chat_dict):
         del gemini_pro_chat_dict[str(user_id)]
-    if (str(user_id) in gemini_draw_dict):
-        del gemini_draw_dict[str(user_id)]
     await bot.reply_to(message, gemini.get_message("history_cleared", user_id))
 
 async def switch(message: Message, bot: TeleBot) -> None:

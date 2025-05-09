@@ -1,6 +1,6 @@
 import google.generativeai as genai
-# Attempt to import specific types directly
-from google.generativeai.types import SafetySetting, GenerateContentConfig, HarmCategory, BlockThreshold
+# Remove explicit imports of types which might not exist in the installed version
+# from google.generativeai.types import SafetySetting, GenerateContentConfig, HarmCategory, BlockThreshold
 
 # 中英文消息配置
 messages = {
@@ -90,30 +90,32 @@ conf = {
     "default_language": "zh"  # 默认语言
 }
 
+# 使用简单的字典结构定义安全设置，避免依赖特定类型
 safety_settings = [
-    SafetySetting(
-        category=HarmCategory.HARM_CATEGORY_HARASSMENT,
-        threshold=BlockThreshold.BLOCK_NONE,
-    ),
-    SafetySetting(
-        category=HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold=BlockThreshold.BLOCK_NONE,
-    ),
-    SafetySetting(
-        category=HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold=BlockThreshold.BLOCK_NONE,
-    ),
-    SafetySetting(
-        category=HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold=BlockThreshold.BLOCK_NONE,
-    ),
-    SafetySetting(
-        category="HARM_CATEGORY_CIVIC_INTEGRITY",
-        threshold=BlockThreshold.BLOCK_NONE,
-    )
+    {
+        "category": "HARM_CATEGORY_HARASSMENT",
+        "threshold": "BLOCK_NONE",
+    },
+    {
+        "category": "HARM_CATEGORY_HATE_SPEECH",
+        "threshold": "BLOCK_NONE",
+    },
+    {
+        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        "threshold": "BLOCK_NONE",
+    },
+    {
+        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+        "threshold": "BLOCK_NONE",
+    },
+    {
+        "category": "HARM_CATEGORY_CIVIC_INTEGRITY",
+        "threshold": "BLOCK_NONE",
+    }
 ]
 
-generation_config = GenerateContentConfig(
-    response_modalities=['Text'],
-    safety_settings=safety_settings,
-)
+# 同样使用字典定义生成配置
+generation_config = {
+    "response_modalities": ['Text'],
+    "safety_settings": safety_settings,
+}

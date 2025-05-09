@@ -4,6 +4,7 @@ import asyncio
 import re
 import telebot
 from telebot.async_telebot import AsyncTeleBot
+import google.generativeai as genai
 import handlers
 from config import conf, generation_config, safety_settings, command_descriptions
 
@@ -14,6 +15,9 @@ parser.add_argument("GOOGLE_GEMINI_KEY", help="Google Gemini API key")
 options = parser.parse_args()
 print("Arg parse done.")
 
+# 重要: 配置 Google Gemini API 密钥
+genai.configure(api_key=options.GOOGLE_GEMINI_KEY)
+print("Google Gemini API key configured.")
 
 async def main():
     # Init bot
@@ -31,7 +35,10 @@ commands=[
         telebot.types.BotCommand("edit", command_descriptions[lang]["edit"]),
         telebot.types.BotCommand("clear", command_descriptions[lang]["clear"]),
         telebot.types.BotCommand("switch", command_descriptions[lang]["switch"]),
-        telebot.types.BotCommand("language", command_descriptions[lang]["language"])
+        telebot.types.BotCommand("language", command_descriptions[lang]["language"]),
+        telebot.types.BotCommand("set_system_prompt", command_descriptions[lang]["set_system_prompt"]),
+        telebot.types.BotCommand("view_system_prompt", command_descriptions[lang]["view_system_prompt"]),
+        telebot.types.BotCommand("delete_system_prompt", command_descriptions[lang]["delete_system_prompt"])
     ],
 )
     print("Bot init done.")
@@ -45,6 +52,9 @@ commands=[
     bot.register_message_handler(handlers.clear,                         commands=['clear'],         pass_bot=True)
     bot.register_message_handler(handlers.switch,                        commands=['switch'],        pass_bot=True)
     bot.register_message_handler(handlers.language_switch,               commands=['language'],      pass_bot=True)
+    bot.register_message_handler(handlers.set_system_prompt_handler,     commands=['set_system_prompt'], pass_bot=True)
+    bot.register_message_handler(handlers.view_system_prompt_handler,    commands=['view_system_prompt'], pass_bot=True)
+    bot.register_message_handler(handlers.delete_system_prompt_handler,  commands=['delete_system_prompt'], pass_bot=True)
     bot.register_message_handler(handlers.gemini_photo_handler,          content_types=["photo"],    pass_bot=True)
     bot.register_message_handler(
         handlers.gemini_private_handler,
