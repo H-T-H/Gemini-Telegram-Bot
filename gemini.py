@@ -294,10 +294,18 @@ async def _gemini_search(bot:TeleBot, message:Message, m:str):
                  print(f"Failed to send final error reply: {e_final_error_reply}")
 
 async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
-    user_id = message.from_user.id
-    user_id_str = str(user_id)
-    sent_message = None
+    """处理 Gemini 文本流式生成。"""
+    user_id = str(message.from_user.id)
     
+    # 导入用户搜索设置
+    from handlers import user_search_settings
+    
+    # 检查用户是否已禁用搜索
+    user_search_enabled = user_search_settings.get(user_id, True)  # 默认为启用
+    if not user_search_enabled:
+        print(f"用户 {user_id} 已禁用搜索功能")
+    
+    sent_message = None
     try:
         if not gemini_client:
             error_text = "CRITICAL ERROR: Gemini client not initialized in gemini.py. Please check main.py setup."
@@ -312,8 +320,8 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
         # 标记聊天会话是否支持搜索功能
         chat_supports_search = False
 
-        if user_id_str not in chat_session_dict:
-            print(f"Creating new chat for {user_id_str} with model {model_type} and Google search tool.")
+        if user_id not in chat_session_dict:
+            print(f"Creating new chat for {user_id} with model {model_type} and Google search tool.")
             
             # 准备系统指令
             system_instruction = current_system_prompt if current_system_prompt else None
@@ -394,7 +402,8 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                         try:
                             # 使用更标准的系统指令格式
                             system_message = f"你是一个AI助手，请遵循以下系统指令：\n\n{system_instruction}"
-                            # 使用普通的 send_message 而不是流式的，不使用 await
+                            
+                            # 发送系统消息，不传递额外参数
                             response = chat_session.send_message(system_message)
                             print("系统提示通过首条消息设置成功")
                         except Exception as e_sys_msg:
@@ -426,7 +435,8 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                                 try:
                                     # 使用更标准的系统指令格式
                                     system_message = f"你是一个AI助手，请遵循以下系统指令：\n\n{system_instruction}"
-                                    # 使用普通的 send_message 而不是流式的，不使用 await
+                                    
+                                    # 发送系统消息，不传递额外参数
                                     response = chat_session.send_message(system_message)
                                     print("系统提示通过首条消息设置成功")
                                 except Exception as e_sys_msg:
@@ -439,7 +449,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                     if not chat_session:
                         raise Exception("所有模型变体都创建失败，无法创建支持搜索的聊天会话")
                 
-                chat_session_dict[user_id_str] = chat_session
+                chat_session_dict[user_id] = chat_session
             except Exception as e_create:
                 print(f"创建聊天会话出错: {e_create}")
                 # 最后尝试：使用普通模式创建聊天会话
@@ -451,7 +461,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                     # 移除 safety_settings 参数
                 )
                 print("聊天会话创建成功（普通模式，无搜索功能）")
-                chat_session_dict[user_id_str] = chat_session
+                chat_session_dict[user_id] = chat_session
                 # 标记聊天会话不支持搜索
                 chat_supports_search = False
                 
@@ -467,7 +477,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                     except Exception as e_sys_msg:
                         print(f"通过首条消息设置系统提示失败: {e_sys_msg}")
         else:
-            chat_session = chat_session_dict[user_id_str]
+            chat_session = chat_session_dict[user_id]
             # 对于已存在的会话，我们无法确定是否支持搜索，默认为否
             chat_supports_search = False
         
@@ -534,10 +544,11 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             # 新 SDK 流式响应
             response_stream = None
             
-            # 创建不包含 temperature 的配置参数字典
+            # 创建不包含不兼容参数的配置参数字典
             stream_params = {}
+            incompatible_params = ["temperature", "top_p", "top_k", "candidate_count", "stop_sequences"]
             for key, value in gen_conf_params.items():
-                if key not in ["temperature"]:  # 排除 temperature 参数
+                if key not in incompatible_params:
                     stream_params[key] = value
             
             print(f"gemini_stream: 流式发送使用的参数: {stream_params}")
@@ -654,7 +665,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                                 try:
                                     final_response = await chat_session.send_message(
                                         message=current_message,
-                                        **stream_params  # 使用不包含 temperature 的参数
+                                        **stream_params  # 使用不包含不兼容参数的参数
                                     )
                                     if hasattr(final_response, "text") and final_response.text:
                                         accumulated_text = final_response.text

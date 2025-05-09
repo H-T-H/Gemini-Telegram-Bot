@@ -60,6 +60,30 @@ messages = {
         "search_in_progress": "🔍 Searching the web, please wait...",
         "search_failed": "❌ Web search failed, will try to answer with model knowledge",
         "search_results": "🔍 Search results:"
+    },
+    "zh": {
+        "error_info": "抱歉，出现了一个错误：",
+        "error_details": "错误详情：",
+        "model_switched": "已切换到模型：",
+        "language_switched": "语言已切换为简体中文",
+        "start_info": "欢迎使用 Gemini AI 助手！\n\n您可以直接发送消息开始聊天，或使用以下命令：\n/gemini - 使用 Gemini 进行对话\n/draw - 生成图片\n/clear - 清除对话历史\n/switch - 切换模型\n/language - 切换语言\n/set_system_prompt - 设置系统提示\n/testsearch - 测试搜索功能\n/search - 启用/禁用在线搜索",
+        "gemini_help": "请在命令后输入您的问题，例如：/gemini 请介绍一下你自己",
+        "draw_help": "请在命令后输入您想要生成的图片描述，例如：/draw 一只可爱的猫咪",
+        "edit_help": "请回复带有图片的消息，并在命令后添加您的编辑指令，例如：/edit 将背景改为蓝色",
+        "photo_reply_tip": "请告诉我这张图片是什么，或者您想了解图片中的什么内容？",
+        "clear_success": "聊天历史已清除",
+        "generating": "正在生成回复...",
+        "system_prompt_set": "系统提示已设置为：",
+        "system_prompt_usage": "请在命令后输入您想设置的系统提示，例如：/set_system_prompt 你是一个专业的科学家",
+        "system_prompt_current": "当前系统提示是：",
+        "system_prompt_none": "当前没有设置系统提示",
+        "system_prompt_deleted": "系统提示已删除",
+        "system_prompt_error": "设置系统提示时发生错误",
+        "search_enabled": "在线搜索功能已启用，系统将尝试在回答问题时获取最新信息",
+        "search_disabled": "在线搜索功能已禁用，系统将仅使用训练数据回答问题",
+        "search_in_progress": "正在进行在线搜索...",
+        "search_failed": "在线搜索未能返回结果，将使用基础知识回答问题",
+        "search_results": "在线搜索结果："
     }
 }
 
@@ -94,6 +118,20 @@ command_descriptions = {
         "delete_system_prompt": "Delete the current system prompt",
         "search": "Enable/disable web search",
         "testsearch": "Test Google search functionality"
+    },
+    "zh": {
+        "start": "开始使用助手",
+        "gemini": "使用 Gemini 对话",
+        "gemini_pro": "使用 Gemini Pro 对话",
+        "draw": "生成图片",
+        "edit": "编辑图片",
+        "clear": "清除对话历史",
+        "switch": "切换模型",
+        "language": "切换语言",
+        "set_system_prompt": "设置系统提示",
+        "view_system_prompt": "查看当前系统提示",
+        "delete_system_prompt": "删除系统提示",
+        "search": "启用/禁用在线搜索"
     }
 }
 

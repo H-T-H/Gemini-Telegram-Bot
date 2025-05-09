@@ -2,8 +2,13 @@ from telebot import TeleBot
 from telebot.types import Message
 from md2tgmd import escape
 import traceback
-from config import conf, messages
+from config import conf, messages, command_descriptions
 import gemini
+import telebot
+import json
+import os
+import time
+import asyncio
 
 model_1 = conf["model_1"]
 model_2 = conf["model_2"]
@@ -12,6 +17,24 @@ gemini_chat_dict = gemini.gemini_chat_dict
 gemini_pro_chat_dict = gemini.gemini_pro_chat_dict
 default_model_dict = gemini.default_model_dict
 language_dict = gemini.language_dict
+
+# 存储用户设置的系统提示
+user_system_prompts = {}
+# 存储用户选择的模型
+user_models = {}
+# 存储用户的语言设置
+user_languages = {}
+# 存储用户的搜索设置
+user_search_settings = {}
+
+# 获取用户语言
+def get_user_language(user_id):
+    return user_languages.get(str(user_id), conf['default_language'])
+
+# 获取用户特定语言的消息
+def get_message(message_key, user_id):
+    lang = get_user_language(user_id)
+    return messages[lang][message_key]
 
 # --- System Prompt Command Handlers ---
 async def set_system_prompt_handler(message: Message, bot: TeleBot) -> None:
@@ -203,3 +226,31 @@ async def test_search_handler(message: Message, bot: TeleBot) -> None:
     
     print(f"用户 {message.from_user.id} 请求测试 Google 搜索功能")
     await gemini.test_search_capability(bot, message)
+
+# 添加切换搜索功能的命令处理函数
+async def toggle_search_handler(message: Message):
+    try:
+        user_id = str(message.from_user.id)
+        # 切换搜索设置，如果不存在则默认为开启状态（True）
+        current_setting = user_search_settings.get(user_id, True)
+        new_setting = not current_setting
+        user_search_settings[user_id] = new_setting
+        
+        # 获取用户语言并发送合适的消息
+        if new_setting:
+            reply_message = get_message('search_enabled', user_id)
+        else:
+            reply_message = get_message('search_disabled', user_id)
+        
+        await message.bot.reply_to(message, reply_message)
+    except Exception as e:
+        traceback.print_exc()
+        await message.bot.reply_to(message, f"Error toggling search: {str(e)}")
+
+# 添加测试搜索功能的命令处理函数
+async def test_search_handler(message: Message):
+    try:
+        await test_search_capability(message.bot, message)
+    except Exception as e:
+        traceback.print_exc()
+        await message.bot.reply_to(message, f"Error testing search: {str(e)}")

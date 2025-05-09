@@ -77,7 +77,8 @@ commands=[
         telebot.types.BotCommand("set_system_prompt", command_descriptions[lang]["set_system_prompt"]),
         telebot.types.BotCommand("view_system_prompt", command_descriptions[lang]["view_system_prompt"]),
         telebot.types.BotCommand("delete_system_prompt", command_descriptions[lang]["delete_system_prompt"]),
-        telebot.types.BotCommand("testsearch", "测试 Google 搜索功能")
+        telebot.types.BotCommand("testsearch", "测试 Google 搜索功能"),
+        telebot.types.BotCommand("search", command_descriptions[lang]["search"])
     ],
 )
     print("Bot init done.")
@@ -95,6 +96,7 @@ commands=[
     bot.register_message_handler(handlers.view_system_prompt_handler,    commands=['view_system_prompt'], pass_bot=True)
     bot.register_message_handler(handlers.delete_system_prompt_handler,  commands=['delete_system_prompt'], pass_bot=True)
     bot.register_message_handler(handlers.test_search_handler,           commands=['testsearch'],    pass_bot=True)
+    bot.register_message_handler(handlers.toggle_search_handler,         commands=['search'],        pass_bot=True)
     bot.register_message_handler(handlers.gemini_photo_handler,          content_types=["photo"],    pass_bot=True)
     bot.register_message_handler(
         handlers.gemini_private_handler,
