@@ -4,7 +4,6 @@ import asyncio
 import re
 import telebot
 from telebot.async_telebot import AsyncTeleBot
-from google import genai
 import os # Import os for environment variable access
 
 # 添加更详细的异常处理
@@ -28,28 +27,27 @@ options = parser.parse_args()
 print("Arg parse done.")
 
 async def main():
-    # Initialize the Google GenAI Client
+    # 获取 API key
     api_key_to_use = os.getenv("GOOGLE_API_KEY")
-    client_init_method = "environment variable GOOGLE_API_KEY"
+    key_source = "environment variable GOOGLE_API_KEY"
 
     if not api_key_to_use:
         print(f"GOOGLE_API_KEY environment variable not set. Falling back to command line argument.")
         api_key_to_use = options.GOOGLE_GEMINI_KEY
-        client_init_method = "command line argument GOOGLE_GEMINI_KEY"
+        key_source = "command line argument GOOGLE_GEMINI_KEY"
         if not api_key_to_use:
             print("FATAL: API key not found in GOOGLE_API_KEY environment variable or command line argument.")
             print("Please set the GOOGLE_API_KEY environment variable or provide the key as a command line argument.")
             return
 
-    client = None # Define client here to ensure it's in scope for finally block or further use
     try:
-        client = genai.Client(api_key=api_key_to_use)
-        print(f"Google GenAI Client initialized successfully using API key from {client_init_method}.")
+        # 不再在这里创建 client，而是直接传递 API key 给 gemini 模块
+        print(f"Using Google Gemini API key from {key_source}.")
         
-        # Set the client for the gemini module (via handlers)
-        # Ensure handlers and handlers.gemini are loaded before this call
+        # 将 API key 传递给 gemini 模块
         if hasattr(handlers, 'gemini') and handlers.gemini:
-            handlers.gemini.set_gemini_client(client)
+            handlers.gemini.set_gemini_client(api_key_to_use)
+            print("API key successfully passed to gemini module.")
         else:
             print("CRITICAL ERROR: handlers.gemini module not available. Cannot set Gemini client.")
             print("Make sure 'import gemini' is present in handlers.py and gemini.py exists.")
