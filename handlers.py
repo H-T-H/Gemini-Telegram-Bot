@@ -192,3 +192,14 @@ async def draw_handler(message: Message, bot: TeleBot) -> None:
         return
     
     await gemini.gemini_draw(bot, message, m)
+
+# 新添加的测试搜索功能处理器
+async def test_search_handler(message: Message, bot: TeleBot) -> None:
+    """处理 /testsearch 命令，测试Google搜索功能"""
+    # 只允许私聊使用此命令
+    if message.chat.type != 'private':
+        await bot.reply_to(message, "此命令只能在私聊中使用。")
+        return
+    
+    print(f"用户 {message.from_user.id} 请求测试 Google 搜索功能")
+    await gemini.test_search_capability(bot, message)

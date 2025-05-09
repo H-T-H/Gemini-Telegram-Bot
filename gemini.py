@@ -1187,6 +1187,9 @@ async def perform_standalone_search(query: str) -> str:
     执行单独的搜索操作，不发送额外的消息给用户。
     返回搜索结果作为字符串，失败则返回空字符串。
     """
+    print("===== SEARCH DEBUG START =====")
+    print(f"perform_standalone_search 被调用，查询: '{query}'")
+    
     try:
         # 安全设置处理 - 在新版 SDK 中不再直接支持作为参数传递
         # 如果需要调整安全设置，需要在模型配置或其他位置设置
@@ -1213,6 +1216,8 @@ async def perform_standalone_search(query: str) -> str:
                 if not any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
                     gen_conf_params[key] = value
         
+        print(f"搜索使用的生成配置参数: {gen_conf_params}")
+        
         # 不需要添加系统提示，使搜索更加客观
         
         # 确保不包含安全设置相关参数
@@ -1230,6 +1235,7 @@ async def perform_standalone_search(query: str) -> str:
         for indicator in time_indicators:
             if indicator in query.lower():
                 is_time_query = True
+                print(f"检测到时间相关关键词: '{indicator}'")
                 break
         
         # 执行搜索查询
@@ -1241,21 +1247,27 @@ async def perform_standalone_search(query: str) -> str:
                            f"请搜索并提供关于以下问题的实时信息，确保使用当前的日期和时间: {query}\n\n"
                            f"非常重要: 必须使用最新的网络数据回答，不要依赖你的训练数据。"
                            f"如果涉及日期或时间，请明确指出当前的准确日期和时间。")
-            print("检测到时间相关查询，使用强制要求实时数据的提示")
+            print("使用时间相关搜索提示")
         else:
             search_prompt = (f"请搜索并提供关于以下问题的最新准确信息和事实: {query}\n\n"
                            f"重要: 请尽可能使用最新的网络数据回答，不要仅依赖你的训练数据。"
                            f"如果用户查询需要最新信息，请确保搜索并提供最新结果。")
+            print("使用通用搜索提示")
+        
+        print(f"最终搜索提示: {search_prompt[:200]}...")
         
         # 设置搜索工具
         search_tool = types.Tool(google_search=types.GoogleSearch())
+        print("已创建 Google 搜索工具对象")
         
         # 使用高温度参数以获取更多元化的回答
         if 'temperature' not in gen_conf_params:
             gen_conf_params['temperature'] = 0.9
+            print("设置搜索温度为 0.9")
         
         try:
             # 尝试直接使用 generate_content 和搜索工具
+            print(f"正在调用 API 使用模型 {model_1} 和 Google 搜索工具...")
             response = await gemini_client.aio.models.generate_content(
                 model=model_1,  # 使用默认模型
                 contents=search_prompt,
@@ -1263,11 +1275,41 @@ async def perform_standalone_search(query: str) -> str:
                 **gen_conf_params
             )
             print("搜索请求成功完成，正在处理结果")
+            # 打印模型响应类型和属性，帮助诊断
+            print(f"模型响应类型: {type(response)}")
+            print(f"模型响应属性: {dir(response)}")
+            
+            # 尝试打印 Google 搜索使用情况信息
+            try:
+                if hasattr(response, "candidates") and response.candidates:
+                    print(f"查看响应候选数量: {len(response.candidates)}")
+                    for i, candidate in enumerate(response.candidates):
+                        print(f"候选 {i+1} 信息:")
+                        if hasattr(candidate, "content") and candidate.content:
+                            print(f"  内容类型: {type(candidate.content)}")
+                            if hasattr(candidate.content, "parts"):
+                                print(f"  部分数量: {len(candidate.content.parts)}")
+                        if hasattr(candidate, "tool_uses"):
+                            print(f"  工具使用数量: {len(candidate.tool_uses)}")
+                            for j, tool_use in enumerate(candidate.tool_uses):
+                                print(f"    工具 {j+1} 类型: {type(tool_use)}")
+                                print(f"    工具 {j+1} 属性: {dir(tool_use)}")
+                                if hasattr(tool_use, "tool_name"):
+                                    print(f"    工具 {j+1} 名称: {tool_use.tool_name}")
+                                if hasattr(tool_use, "tool_result"):
+                                    print(f"    工具 {j+1} 结果类型: {type(tool_use.tool_result)}")
+                                    print(f"    工具 {j+1} 结果长度: {len(str(tool_use.tool_result))}")
+                                    print(f"    工具 {j+1} 结果前100字符: {str(tool_use.tool_result)[:100]}...")
+            except Exception as e_debug:
+                print(f"在调试响应时出错: {e_debug}")
         except Exception as e_search:
             print(f"使用 google_search 工具失败: {e_search}")
+            print(f"错误类型: {type(e_search)}")
+            print(f"完整错误信息: {str(e_search)}")
             try:
                 # 退回到不使用工具的方式，但仍尝试执行搜索查询
                 fallback_prompt = f"【重要：请执行网络搜索】\n{search_prompt}\n【这是一个需要最新信息的查询】"
+                print(f"尝试不使用搜索工具的替代方法...")
                 response = await gemini_client.aio.models.generate_content(
                     model=model_1,  # 使用默认模型
                     contents=fallback_prompt,
@@ -1276,22 +1318,282 @@ async def perform_standalone_search(query: str) -> str:
                 print("使用替代方法完成搜索")
             except Exception as e_fallback:
                 print(f"替代搜索方法也失败: {e_fallback}")
+                print(f"错误类型: {type(e_fallback)}")
+                print(f"完整错误信息: {str(e_fallback)}")
+                print("===== SEARCH DEBUG END (失败) =====")
                 return f"搜索功能暂时不可用。错误: {str(e_fallback)[:100]}"
         
         # 处理响应
         if hasattr(response, "text") and response.text:
-            print(f"搜索成功，返回结果长度: {len(response.text)} 字符")
-            return response.text
+            result = response.text
+            print(f"搜索成功，返回结果长度: {len(result)} 字符")
+            print(f"结果前200字符: {result[:200]}...")
+            print("===== SEARCH DEBUG END (成功) =====")
+            return result
         elif response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
             result_text = ""
             for part in response.candidates[0].content.parts:
                 if hasattr(part, "text") and part.text:
                     result_text += part.text
             print(f"搜索成功，返回结果长度: {len(result_text)} 字符")
+            print(f"结果前200字符: {result_text[:200]}...")
+            print("===== SEARCH DEBUG END (成功) =====")
             return result_text
         
+        print("搜索未返回有效结果")
+        print("===== SEARCH DEBUG END (无结果) =====")
         return "搜索未返回有效结果，请重试或改变查询方式。"  # 提供更有用的错误信息
         
     except Exception as e:
         print(f"独立搜索查询失败: {e}")
+        print(f"错误类型: {type(e)}")
+        print(f"完整错误信息: {str(e)}")
+        print("===== SEARCH DEBUG END (异常) =====")
         return f"搜索过程中发生错误: {str(e)[:100]}"  # 返回错误信息而非空字符串
+
+# 新添加的测试搜索功能函数
+async def test_search_capability(bot: TeleBot, message: Message):
+    """
+    专门用于测试 Google 搜索功能的函数。
+    此函数会尝试多种方法测试搜索功能，并详细报告结果。
+    """
+    user_id = message.from_user.id
+    user_id_str = str(user_id)
+    sent_message = None
+    
+    try:
+        if not gemini_client:
+            error_text = "CRITICAL ERROR: Gemini client not initialized in gemini.py."
+            print(error_text)
+            await bot.reply_to(message, error_text)
+            return
+
+        sent_message = await bot.reply_to(message, "正在测试 Google 搜索功能，请稍候...")
+        
+        # 准备一个明确需要搜索的简单查询
+        test_query = "今天是几月几号星期几"
+        
+        # 1. 测试搜索工具创建
+        try:
+            print("\n===== 测试 #1: 创建搜索工具对象 =====")
+            search_tool = types.Tool(google_search=types.GoogleSearch())
+            await bot.edit_message_text(
+                "步骤 1/4: ✅ 成功创建搜索工具对象", 
+                chat_id=sent_message.chat.id, 
+                message_id=sent_message.message_id
+            )
+            print("✅ 搜索工具对象创建成功")
+        except Exception as e1:
+            error_msg = f"步骤 1/4: ❌ 创建搜索工具对象失败: {str(e1)}"
+            await bot.edit_message_text(
+                error_msg, 
+                chat_id=sent_message.chat.id, 
+                message_id=sent_message.message_id
+            )
+            print(f"❌ 错误: {error_msg}")
+            return
+        
+        # 2. 测试模型是否支持搜索工具
+        try:
+            print("\n===== 测试 #2: 模型支持搜索工具 =====")
+            available_models = []
+            
+            try:
+                # 尝试获取可用模型列表
+                models_info = await gemini_client.aio.models.list()
+                if hasattr(models_info, "models"):
+                    available_models = [model.name for model in models_info.models]
+                    print(f"可用模型: {available_models}")
+            except Exception as e_models:
+                print(f"获取模型列表失败: {e_models}")
+            
+            # 测试模型支持
+            test_models = [model_1]
+            if model_1 != model_2:
+                test_models.append(model_2)
+            if model_3 not in test_models:
+                test_models.append(model_3)
+                
+            model_support_results = []
+            
+            for test_model in test_models:
+                try:
+                    print(f"测试模型 {test_model} 是否支持搜索工具...")
+                    # 简单查询测试
+                    await gemini_client.aio.models.generate_content(
+                        model=test_model,
+                        contents="测试查询",
+                        tools=[search_tool],
+                        temperature=0.2,
+                        # 最小化token使用
+                        max_output_tokens=10
+                    )
+                    model_support_results.append(f"✅ 模型 {test_model} 支持搜索工具")
+                    print(f"✅ 模型 {test_model} 支持搜索工具")
+                except Exception as e_model:
+                    model_support_results.append(f"❌ 模型 {test_model} 不支持搜索工具: {str(e_model)}")
+                    print(f"❌ 模型 {test_model} 不支持搜索工具: {str(e_model)}")
+            
+            if any("✅" in result for result in model_support_results):
+                await bot.edit_message_text(
+                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n" + "\n".join(model_support_results), 
+                    chat_id=sent_message.chat.id, 
+                    message_id=sent_message.message_id
+                )
+            else:
+                await bot.edit_message_text(
+                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ❌ 没有模型支持搜索工具\n" + "\n".join(model_support_results), 
+                    chat_id=sent_message.chat.id, 
+                    message_id=sent_message.message_id
+                )
+                print("❌ 没有模型支持搜索工具")
+                return
+        except Exception as e2:
+            error_msg = f"步骤 2/4: ❌ 测试模型支持失败: {str(e2)}"
+            await bot.edit_message_text(
+                f"步骤 1/4: ✅ 成功创建搜索工具对象\n{error_msg}", 
+                chat_id=sent_message.chat.id, 
+                message_id=sent_message.message_id
+            )
+            print(f"❌ 错误: {error_msg}")
+            return
+        
+        # 3. 执行实际搜索测试
+        try:
+            print(f"\n===== 测试 #3: 执行实际搜索 '{test_query}' =====")
+            await bot.edit_message_text(
+                f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: 🔄 正在执行实际搜索...", 
+                chat_id=sent_message.chat.id, 
+                message_id=sent_message.message_id
+            )
+            
+            # 使用第一个支持搜索的模型
+            supported_model = None
+            for result in model_support_results:
+                if "✅" in result:
+                    supported_model = result.split("模型 ")[1].split(" 支持")[0]
+                    break
+            
+            if not supported_model:
+                supported_model = model_1  # 默认使用 model_1
+            
+            # 执行搜索
+            print(f"使用模型 {supported_model} 执行搜索")
+            response = await gemini_client.aio.models.generate_content(
+                model=supported_model,
+                contents=f"请执行网络搜索并回答: {test_query}。必须包含你是如何获取这个信息的详细说明。",
+                tools=[search_tool],
+                temperature=0.2
+            )
+            
+            # 分析响应
+            search_used = False
+            response_text = ""
+            
+            if hasattr(response, "text"):
+                response_text = response.text
+            elif response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, "text"):
+                        response_text += part.text
+            
+            # 检查响应是否包含搜索结果指示
+            search_indicators = [
+                "搜索", "查询", "网络", "结果", "搜索结果", "根据搜索", "通过搜索",
+                "google", "search", "results", "found", "according to", "web search"
+            ]
+            
+            for indicator in search_indicators:
+                if indicator.lower() in response_text.lower():
+                    search_used = True
+                    break
+            
+            # 检查是否有工具使用记录
+            if hasattr(response, "candidates") and response.candidates:
+                for candidate in response.candidates:
+                    if hasattr(candidate, "tool_uses") and candidate.tool_uses:
+                        search_used = True
+                        break
+            
+            if search_used:
+                await bot.edit_message_text(
+                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n\n搜索结果摘要:\n{response_text[:300]}...", 
+                    chat_id=sent_message.chat.id, 
+                    message_id=sent_message.message_id
+                )
+                print(f"✅ 搜索成功，结果长度: {len(response_text)} 字符")
+                print(f"响应摘要: {response_text[:200]}...")
+            else:
+                await bot.edit_message_text(
+                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ⚠️ 搜索执行了但可能未使用搜索工具\n\n响应摘要:\n{response_text[:300]}...", 
+                    chat_id=sent_message.chat.id, 
+                    message_id=sent_message.message_id
+                )
+                print(f"⚠️ 响应中未明确指示使用了搜索工具")
+                print(f"响应摘要: {response_text[:200]}...")
+        except Exception as e3:
+            error_msg = f"步骤 3/4: ❌ 执行实际搜索失败: {str(e3)}"
+            await bot.edit_message_text(
+                f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n{error_msg}", 
+                chat_id=sent_message.chat.id, 
+                message_id=sent_message.message_id
+            )
+            print(f"❌ 错误: {error_msg}")
+            return
+        
+        # 4. 测试 perform_standalone_search 函数
+        try:
+            print("\n===== 测试 #4: 测试 perform_standalone_search 函数 =====")
+            await bot.edit_message_text(
+                f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n步骤 4/4: 🔄 测试 perform_standalone_search 函数...", 
+                chat_id=sent_message.chat.id, 
+                message_id=sent_message.message_id
+            )
+            
+            # 测试 perform_standalone_search 函数
+            search_result = await perform_standalone_search(test_query)
+            
+            if search_result and len(search_result) > 50:  # 确保结果不是错误消息
+                final_message = (
+                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n"
+                    f"步骤 2/4: ✅ 至少一个模型支持搜索工具\n"
+                    f"步骤 3/4: ✅ 成功执行实际搜索\n"
+                    f"步骤 4/4: ✅ perform_standalone_search 函数工作正常\n\n"
+                    f"搜索测试完成! Google 搜索功能正常工作。\n\n"
+                    f"搜索结果摘要:\n{search_result[:300]}..."
+                )
+                await bot.edit_message_text(
+                    final_message, 
+                    chat_id=sent_message.chat.id, 
+                    message_id=sent_message.message_id
+                )
+                print(f"✅ perform_standalone_search 函数工作正常")
+                print(f"结果摘要: {search_result[:200]}...")
+            else:
+                error_details = search_result if search_result else "未返回有效结果"
+                await bot.edit_message_text(
+                    f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n步骤 4/4: ❌ perform_standalone_search 函数失败\n\n错误: {error_details}", 
+                    chat_id=sent_message.chat.id, 
+                    message_id=sent_message.message_id
+                )
+                print(f"❌ perform_standalone_search 函数失败: {error_details}")
+        except Exception as e4:
+            error_msg = f"步骤 4/4: ❌ 测试 perform_standalone_search 函数失败: {str(e4)}"
+            await bot.edit_message_text(
+                f"步骤 1/4: ✅ 成功创建搜索工具对象\n步骤 2/4: ✅ 至少一个模型支持搜索工具\n步骤 3/4: ✅ 成功执行实际搜索\n{error_msg}", 
+                chat_id=sent_message.chat.id, 
+                message_id=sent_message.message_id
+            )
+            print(f"❌ 错误: {error_msg}")
+            
+    except Exception as e:
+        error_text = f"测试 Google 搜索功能时发生错误: {str(e)}"
+        print(error_text)
+        if sent_message:
+            await bot.edit_message_text(
+                error_text, 
+                chat_id=sent_message.chat.id, 
+                message_id=sent_message.message_id
+            )
+        else:
+            await bot.reply_to(message, error_text)
