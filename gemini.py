@@ -442,7 +442,7 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
         try:
             if user_id_str not in gemini_draw_dict:
                 print(f"创建新的绘图聊天会话 (用户: {user_id_str}) 为模型 {draw_model}")
-                chat = await gemini_client.aio.chats.create(
+                chat = gemini_client.aio.chats.create(
                     model=draw_model
                 )
                 gemini_draw_dict[user_id_str] = chat
