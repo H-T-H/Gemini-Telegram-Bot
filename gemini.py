@@ -555,7 +555,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             
             # 创建不包含不兼容参数的配置参数字典
             stream_params = {}
-            incompatible_params = ["temperature", "top_p", "top_k", "candidate_count", "stop_sequences"]
+            incompatible_params = ["temperature", "top_p", "top_k", "candidate_count", "stop_sequences", "max_output_tokens"]
             for key, value in gen_conf_params.items():
                 if key not in incompatible_params:
                     stream_params[key] = value
@@ -755,7 +755,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             try:
                 await bot.reply_to(message, error_message_text)
             except Exception as e_final_error_reply:
-                 print(f"Failed to send final error reply: {e_final_error_reply}")
+                print(f"Failed to send final error reply: {e_final_error_reply}")
 
 async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes):
     user_id = message.from_user.id
@@ -1272,18 +1272,19 @@ async def perform_standalone_search(query: str) -> str:
         if generation_config: 
             # 仅添加兼容参数
             for key, value in generation_config.items():
-                if not any(x in key.lower() for x in ["safety", "mime", "type", "response"]) and key != "temperature":
+                if not any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
                     gen_conf_params[key] = value
         
         print(f"搜索使用的生成配置参数: {gen_conf_params}")
         
         # 不需要添加系统提示，使搜索更加客观
         
-        # 确保不包含安全设置相关参数和 temperature 参数
+        # 确保移除不兼容的参数
+        incompatible_params = ["temperature", "top_p", "top_k", "max_output_tokens", "candidate_count", "stop_sequences"]
         for key in list(gen_conf_params.keys()):
-            if any(x in key.lower() for x in ["safety", "mime", "type", "response"]) or key == "temperature":
+            if key in incompatible_params or any(x in key.lower() for x in ["safety", "mime", "type", "response"]):
                 del gen_conf_params[key]
-                print(f"perform_standalone_search: 从配置中移除可能不兼容的参数: {key}")
+                print(f"perform_standalone_search: 从配置中移除不兼容的参数: {key}")
         
         # 增强搜索查询的明确性
         # 检查是否与时间相关的查询
@@ -1320,12 +1321,6 @@ async def perform_standalone_search(query: str) -> str:
         search_tool = types.Tool(google_search=google_search)
         print("已创建 Google 搜索工具对象")
         
-        # 使用高温度参数以获取更多元化的回答
-        search_params = gen_conf_params.copy()  # 创建一个副本，用于存储搜索特定参数
-        if 'temperature' not in search_params:
-            search_params['temperature'] = 0.9
-            print("设置搜索温度为 0.9")
-        
         try:
             # 尝试直接使用 generate_content 和搜索工具
             print(f"正在调用 API 使用模型 {model_1} 和 Google 搜索工具...")
@@ -1333,7 +1328,7 @@ async def perform_standalone_search(query: str) -> str:
                 model=model_1,  # 使用默认模型
                 contents=search_prompt,
                 tools=[search_tool],  # 使用正确的工具对象
-                **gen_conf_params  # 不包含 temperature 的参数
+                **gen_conf_params  # 不包含不兼容参数
             )
             print("搜索请求成功完成，正在处理结果")
             # 打印模型响应类型和属性，帮助诊断
@@ -1371,10 +1366,16 @@ async def perform_standalone_search(query: str) -> str:
                 # 退回到不使用工具的方式，但仍尝试执行搜索查询
                 fallback_prompt = f"【重要：请执行网络搜索】\n{search_prompt}\n【这是一个需要最新信息的查询】"
                 print(f"尝试不使用搜索工具的替代方法...")
+                
+                # 使用不包含不兼容参数的配置参数
+                fallback_params = {}
+                for key, value in gen_conf_params.items():
+                    fallback_params[key] = value
+                
                 response = await gemini_client.aio.models.generate_content(
                     model=model_1,  # 使用默认模型
                     contents=fallback_prompt,
-                    **gen_conf_params  # 不包含 temperature 的参数
+                    **fallback_params  # 不包含不兼容参数
                 )
                 print("使用替代方法完成搜索")
             except Exception as e_fallback:
@@ -1502,9 +1503,8 @@ async def test_search_capability(bot: TeleBot, message: Message):
                     await gemini_client.aio.models.generate_content(
                         model=test_model,
                         contents="测试查询",
-                        tools=[search_tool],  # 使用正确的工具对象
-                        # 最小化token使用
-                        max_output_tokens=10
+                        tools=[search_tool]  # 使用正确的工具对象
+                        # 移除 max_output_tokens 参数
                     )
                     model_support_results.append(f"✅ 模型 {test_model} 支持搜索工具")
                     print(f"✅ 模型 {test_model} 支持搜索工具")
@@ -1557,13 +1557,16 @@ async def test_search_capability(bot: TeleBot, message: Message):
             
             # 执行搜索
             print(f"使用模型 {supported_model} 执行搜索")
+            
+            # 创建搜索参数，不包含不兼容参数
+            search_params = {}
+            # 如果需要可以添加支持的参数，但不包括 max_output_tokens
+            
             response = await gemini_client.aio.models.generate_content(
                 model=supported_model,
                 contents=f"请执行网络搜索并回答: {test_query}。必须包含你是如何获取这个信息的详细说明。",
                 tools=[search_tool],  # 使用正确的工具对象
-                # 移除 temperature 参数
-                # 使用支持的参数
-                max_output_tokens=1024  # 使用合理的输出长度
+                **search_params  # 使用不包含不兼容参数的参数
             )
             
             # 分析响应
