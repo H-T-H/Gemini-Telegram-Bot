@@ -10,7 +10,8 @@ from telebot import TeleBot
 from config import conf, generation_config, messages, safety_settings # Ensure safety_settings is imported
 from google import genai
 from google.genai import types
-from typing import Optional
+from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, FunctionDeclaration # Import necessary types
+from typing import Optional, Dict, Any, List, Union
 
 # Module-level client instance and setter for the new SDK
 gemini_client = None
@@ -92,7 +93,8 @@ model_2 = conf["model_2"]
 model_3 = conf["model_3"]
 default_language = conf["default_language"]
 
-search_tool = {'google_search': {}} # Assuming this is correctly defined or None if not used
+# search_tool 占位符不再需要，我们有了 search_tool_definition
+# search_tool = {'google_search': {}} 
 
 # IMPORTANT: genai.configure(api_key=YOUR_API_KEY) must be called in your main entry point (e.g., main.py)
 # Remove old client: client = genai.Client(api_key=sys.argv[2])
@@ -111,7 +113,9 @@ def get_message(message_key, user_id):
 
 async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
     user_id = message.from_user.id
+    user_id_str = str(user_id)
     sent_message = None
+    
     try:
         if not gemini_client:
             error_text = "CRITICAL ERROR: Gemini client not initialized in gemini.py. Please check main.py setup."
@@ -122,132 +126,180 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
         sent_message = await bot.reply_to(message, get_message("generating_answers", user_id))
 
         chat_session_dict = gemini_chat_dict if model_type == model_1 else gemini_pro_chat_dict
-        user_id_str = str(user_id)
 
-        # Prepare the configuration for the send_message_stream call
-        # This config will include system_instruction, safety_settings, and generation_config parameters
-        pydantic_config_params = {}
-        if current_system_prompt:
-            pydantic_config_params['system_instruction'] = current_system_prompt
-
-        if safety_settings: # Global safety_settings from config.py
-            try:
-                # Ensure safety_settings are converted to list of types.SafetySetting if they are dicts
-                formatted_safety_settings = []
-                for ss_item in safety_settings:
-                    if isinstance(ss_item, dict):
-                        formatted_safety_settings.append(types.SafetySetting(**ss_item))
-                    elif isinstance(ss_item, types.SafetySetting):
-                        formatted_safety_settings.append(ss_item)
-                    # else: ignore or log warning for unexpected type
-                if formatted_safety_settings:
-                    pydantic_config_params['safety_settings'] = formatted_safety_settings
-            except Exception as e_ss_format:
-                print(f"Warning: Could not format safety_settings: {e_ss_format}. Safety settings may not be applied.")
-
-        # Merge global generation_config (from config.py, currently an empty dict)
-        if generation_config: # This is the global one from config.py
-            pydantic_config_params.update(generation_config) # example: temperature, max_output_tokens etc.
-        
-        gen_config_for_api = None
-        if pydantic_config_params: # Only create if there are params
-            try:
-                gen_config_for_api = types.GenerateContentConfig(**pydantic_config_params)
-            except Exception as e_conf_create:
-                print(f"Error creating GenerateContentConfig from params: {pydantic_config_params}. Error: {e_conf_create}")
-                # Fallback: send without this specific GenerateContentConfig if creation fails
-                # Alternatively, could construct a default/empty one or re-raise
-
-        chat_session = None
+        # --- 修改聊天会话创建和消息循环以支持 Function Calling ---
         if user_id_str not in chat_session_dict:
-            print(f"Creating new chat for {user_id_str} with model {model_type}.")
-            # For the new SDK, system_instruction is part of GenerateContentConfig passed to send_message.
-            # History can be passed here if needed for new chats.
-            try:
-                chat_session = gemini_client.aio.chats.create(model=model_type, history=[]) # history can be prepopulated if needed
-                chat_session_dict[user_id_str] = chat_session
-            except Exception as e_create_chat:
-                print(f"Error creating chat session for {user_id_str} with model {model_type}: {e_create_chat}")
-                await bot.edit_message_text(f"Error creating chat session: {e_create_chat}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-                return
+            print(f"Creating new chat for {user_id_str} with model {model_type} and search tool.")
+            # 1. 创建配置了工具的 GenerativeModel 实例
+            # 系统提示词也在这里设置
+            model_instance = gemini_client.aio.generative_model(
+                model_name=model_type,
+                tools=[search_tool_definition], # 传递定义的搜索工具
+                system_instruction=current_system_prompt if current_system_prompt else None,
+                safety_settings=safety_settings # 全局安全设置
+            )
+            # 2. 从模型实例启动聊天
+            # 注意: start_chat_async 返回的是 AsyncChatSession
+            chat_session = await model_instance.start_chat_async(history=[]) 
+            chat_session_dict[user_id_str] = chat_session
         else:
             chat_session = chat_session_dict[user_id_str]
+            # 对于已存在的会话，需要确保其模型也配置了工具。
+            # 如果之前创建时没有工具，这里可能需要重新创建或更新。
+            # 为简单起见，假设首次创建时已包含工具。
+            # 或者，每次都基于最新的 current_system_prompt 和 tools "获取" 模型再开始聊天/发送消息
+            # 这部分逻辑如果系统提示或可用工具在运行时动态改变，会更复杂。
+            # 当前：假设会话一旦创建，其工具配置不变。如果系统提示变了，会话会被clear，下次重建。
 
-        # Send message using the new SDK's chat session
-        try:
-            print(f"Sending message with config: {gen_config_for_api}")
-            response_stream = await chat_session.send_message_stream(message=m, config=gen_config_for_api)
-            
-            full_response = ""
-            last_update = time.time()
-            update_interval = conf.get("streaming_update_interval", 0.5)
-
-            async for chunk in response_stream:
-                if hasattr(chunk, 'text') and chunk.text:
-                    full_response += chunk.text
-                    current_time = time.time()
-                    if current_time - last_update >= update_interval:
-                        try:
-                            await bot.edit_message_text(
-                                escape(full_response), # Ensure md2tgmd escape is still relevant
-                                chat_id=sent_message.chat.id,
-                                message_id=sent_message.message_id,
-                                parse_mode="MarkdownV2"
-                            )
-                        except Exception as e_edit:
-                            if "message is not modified" not in str(e_edit).lower():
-                                # Attempt to send without MarkdownV2 if parsing fails
-                                try:
-                                    await bot.edit_message_text(
-                                        full_response,
-                                        chat_id=sent_message.chat.id,
-                                        message_id=sent_message.message_id
-                                    )
-                                except Exception as e_edit_plain:
-                                    print(f"Error updating message (plain): {e_edit_plain}")
-                            # else: ignore "message not modified"
-                        last_update = current_time
-            
-            # Final update for the message
-            final_text_to_send = escape(full_response) if full_response else "No content generated."
-            try:
-                await bot.edit_message_text(
-                    final_text_to_send,
-                    chat_id=sent_message.chat.id,
-                    message_id=sent_message.message_id,
-                    parse_mode="MarkdownV2"
-                )
-            except Exception as e_final_md:
-                if "parse markdown" in str(e_final_md).lower() or "message is not modified" not in str(e_final_md).lower():
-                    await bot.edit_message_text(
-                        full_response if full_response else "No content generated.",
-                        chat_id=sent_message.chat.id,
-                        message_id=sent_message.message_id
-                    )
-                else:
-                    print(f"Error on final edit (MarkdownV2): {e_final_md}") # Log other errors
+        # 准备 GenerateContentConfig (用于 send_message 的 config)
+        # 全局 generation_config (例如 temperature) 在这里应用
+        gen_conf_params_for_send = {}
+        if generation_config: # 全局的，来自 config.py
+             gen_conf_params_for_send.update(generation_config)
         
-        except Exception as e_send:
-            print(f"Error sending message or processing stream for user {user_id_str}: {e_send}")
-            traceback.print_exc()
-            
-            error_message = str(e_send).lower()
-            if "block" in error_message or "safety" in error_message or "harm" in error_message:
-                print(f"Prompt blocked for user {user_id_str}: {e_send}")
-                await bot.edit_message_text(f"Your request was blocked by safety settings. Details: {str(e_send)}", 
-                                           chat_id=sent_message.chat.id, 
-                                           message_id=sent_message.message_id)
-            elif "stop" in error_message and "candidate" in error_message:
-                print(f"Generation stopped by model for user {user_id_str}: {e_send}")
-                await bot.edit_message_text(f"Content generation stopped as instructed. {str(e_send)}", 
-                                           chat_id=sent_message.chat.id, 
-                                           message_id=sent_message.message_id)
-            else:
-                await bot.edit_message_text(f"Error processing your request: {str(e_send)}", 
-                                          chat_id=sent_message.chat.id, 
-                                          message_id=sent_message.message_id)
+        api_req_config = None
+        if gen_conf_params_for_send:
+            try:
+                api_req_config = types.GenerateContentConfig(**gen_conf_params_for_send)
+            except Exception as e_cfg:
+                print(f"Error creating GenerateContentConfig for send_message: {e_cfg}")
 
-    except Exception as e_outer:
+        # 主要的交互循环，支持函数调用
+        current_message_content: Union[str, List[types.Part]] = m # 初始消息
+
+        while True: # 循环直到得到最终文本回复或出错
+            print(f"Sending to model ({model_type}): {str(current_message_content)[:100]}... Config: {api_req_config}")
+            response_stream = await chat_session.send_message_stream(
+                content=current_message_content, 
+                config=api_req_config # 应用 temperature 等
+            )
+            
+            full_response_parts: List[types.Part] = [] # 收集所有 parts
+            function_call_to_execute = None
+            
+            async for chunk in response_stream:
+                # print(f"Chunk received: Has text? {'text' in chunk}, Has func call? {'function_call' in chunk.parts[0] if chunk.parts else False}") # 调试
+                if chunk.parts:
+                    for part in chunk.parts:
+                        if part.function_call:
+                            function_call_to_execute = part.function_call
+                            print(f"Model requested function call: {function_call_to_execute.name}")
+                            break # 收到函数调用，停止处理当前流的其他部分
+                        else:
+                            # 收集文本部分用于流式输出
+                            # 注意：send_message_stream 的 chunk 可能直接是 Content，其 parts 包含文本
+                            # 或者 chunk.text 可以直接访问
+                            if hasattr(chunk, 'text') and chunk.text: # 更直接的方式
+                                full_response_parts.append(types.Part(text=chunk.text))
+                            elif hasattr(part, 'text') and part.text:
+                                full_response_parts.append(part)
+                elif hasattr(chunk, 'text') and chunk.text: # 如果 chunk 直接有 text 属性
+                     full_response_parts.append(types.Part(text=chunk.text))
+
+
+                if function_call_to_execute:
+                    break 
+            
+            # 将收集到的文本部分进行流式编辑 (如果有的话)
+            accumulated_text = "".join([p.text for p in full_response_parts if p.text])
+            if accumulated_text:
+                # 这里需要将流式编辑逻辑放入，或者在循环内进行
+                # 为简化，暂时假设如果出现 function_call，之前的文本部分会在这里一次性尝试编辑
+                # 理想情况下，文本流式输出和函数调用处理需要更紧密地交织
+                print(f"Accumulated text before/during function call: {accumulated_text[:100]}...")
+                # 即使有函数调用，模型可能也会先输出一些引导性文本
+                # 我们应该显示这些文本
+                try:
+                    # 只编辑，不立即认为这是最终回复，因为可能还有函数调用
+                    await bot.edit_message_text(
+                        escape(accumulated_text),
+                        chat_id=sent_message.chat.id,
+                        message_id=sent_message.message_id,
+                        parse_mode="MarkdownV2"
+                    )
+                except Exception as e_edit_stream:
+                    if "message is not modified" not in str(e_edit_stream).lower():
+                        try:
+                            await bot.edit_message_text(accumulated_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                        except Exception as e_edit_plain_stream:
+                            print(f"Error updating message during stream (plain): {e_edit_plain_stream}")
+            
+            if function_call_to_execute:
+                fc = function_call_to_execute
+                if fc.name == "simulated_google_search":
+                    query = fc.args.get("query")
+                    if query:
+                        # 执行模拟搜索
+                        search_result = _perform_simulated_google_search(query)
+                        # 将 FunctionResponse 作为下一次消息的内容
+                        current_message_content = [types.Part(function_response=types.FunctionResponse(name="simulated_google_search", response=search_result))]
+                        # 清空 accumulated_text，因为我们要获取新的回复
+                        full_response_parts = [] 
+                        accumulated_text = ""
+                        print(f"Function call executed, sending response back to model: {search_result}")
+                        # 继续循环，将函数结果发送给模型
+                        continue 
+                    else:
+                        print("Error: 'query' not found in function call arguments for simulated_google_search")
+                        # 出错了，如何处理？可以发送错误消息给用户，然后跳出循环
+                        await bot.edit_message_text("模型尝试搜索但未提供查询词。", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                        break # 跳出 while True 循环
+                else:
+                    print(f"Error: Received unknown function call: {fc.name}")
+                    await bot.edit_message_text(f"模型尝试调用未知函数: {fc.name}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                    break # 跳出 while True 循环
+            else:
+                # 没有函数调用，说明流已结束，accumulated_text 是最终回复
+                print("No function call, stream ended.")
+                # 此处的 accumulated_text 是完整的最终回复
+                # 应用 MESSAGE_TOO_LONG 的处理逻辑
+                final_text_to_send_escaped = escape(accumulated_text) if accumulated_text else "No content generated."
+                original_final_text = accumulated_text if accumulated_text else "No content generated."
+                MAX_MSG_LENGTH = 4000
+
+                if len(final_text_to_send_escaped) <= MAX_MSG_LENGTH:
+                    try:
+                        await bot.edit_message_text(final_text_to_send_escaped, chat_id=sent_message.chat.id, message_id=sent_message.message_id, parse_mode="MarkdownV2")
+                    except Exception as e_final_md:
+                        if "parse markdown" in str(e_final_md).lower() or ("message is not modified" not in str(e_final_md).lower() and "MESSAGE_TOO_LONG" not in str(e_final_md).upper()):
+                            await bot.edit_message_text(original_final_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                        elif "MESSAGE_TOO_LONG" in str(e_final_md).upper():
+                            print(f"编辑时仍 MESSAGE_TOO_LONG: {e_final_md}. 删除并分段.")
+                            if sent_message:
+                                try: await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                                except Exception as e_del: print(f"警告: 删除消息失败 (stream final, edit too long): {e_del}")
+                                sent_message = None
+                            current_pos = 0
+                            while current_pos < len(original_final_text):
+                                chunk = original_final_text[current_pos : current_pos + MAX_MSG_LENGTH]
+                                await bot.send_message(message.chat.id, chunk)
+                                current_pos += MAX_MSG_LENGTH
+                        else:
+                            print(f"编辑最终消息时未知错误: {e_final_md}")
+                else: # 消息太长
+                    print(f"最终回复过长 ({len(final_text_to_send_escaped)} chars)，分段发送.")
+                    if sent_message:
+                        try: await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                        except Exception as e_del: print(f"警告: 删除消息失败 (stream final, too long): {e_del}")
+                        sent_message = None
+                    current_pos = 0
+                    while current_pos < len(original_final_text):
+                        # ... (分段发送逻辑，与之前类似) ...
+                        original_chunk_for_fallback = original_final_text[current_pos : current_pos + MAX_MSG_LENGTH]
+                        text_to_send_chunk = original_chunk_for_fallback
+                        parse_mode_to_use = None
+                        if len(escape(original_chunk_for_fallback)) <= MAX_MSG_LENGTH:
+                            text_to_send_chunk = escape(original_chunk_for_fallback)
+                            parse_mode_to_use = "MarkdownV2"
+                        try:
+                            await bot.send_message(message.chat.id, text_to_send_chunk, parse_mode=parse_mode_to_use)
+                        except Exception as e_md_chunk:
+                            print(f"分块 MarkdownV2 发送失败 ({e_md_chunk})，尝试纯文本.")
+                            await bot.send_message(message.chat.id, original_chunk_for_fallback)
+                        current_pos += len(original_chunk_for_fallback)
+                break # 结束 while True 循环，因为已获得最终回复
+
+    except Exception as e_outer: # 最外层错误捕获
         traceback.print_exc()
         error_msg_key = 'error_info'
         error_details_key = 'error_details'
@@ -347,20 +399,67 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
                         text_response += part.text
             
             if text_response:
-                final_md_response = escape(text_response)
-                try:
-                    await bot.edit_message_text(
-                        final_md_response,
-                        chat_id=sent_message.chat.id,
-                        message_id=sent_message.message_id,
-                        parse_mode="MarkdownV2"
-                    )
-                except Exception as md_err:
-                    if "parse markdown" in str(md_err).lower():
-                        await bot.edit_message_text(text_response, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-                    else:
-                        raise md_err # 重新抛出其他类型的编辑错误
+                final_md_response_escaped = escape(text_response)
+                original_final_text = text_response
+                MAX_MSG_LENGTH = 4000
+
+                if len(final_md_response_escaped) <= MAX_MSG_LENGTH:
+                    # 消息长度在限制内，尝试编辑原消息
+                    try:
+                        await bot.edit_message_text(
+                            final_md_response_escaped,
+                            chat_id=sent_message.chat.id,
+                            message_id=sent_message.message_id,
+                            parse_mode="MarkdownV2"
+                        )
+                    except Exception as md_err:
+                        if "parse markdown" in str(md_err).lower() or ("message is not modified" not in str(md_err).lower() and "MESSAGE_TOO_LONG" not in str(md_err).upper()):
+                            # Markdown解析失败或其他非长度问题，尝试发送纯文本
+                            await bot.edit_message_text(original_final_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                        elif "MESSAGE_TOO_LONG" in str(md_err).upper():
+                            # 即使在长度检查后，编辑仍可能因精确的字符计算而超长
+                            print(f"编辑消息时仍遇到MESSAGE_TOO_LONG (gemini_edit): {md_err}。将尝试删除并分段发送纯文本。")
+                            if sent_message:
+                                try: await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                                except Exception as e_del: print(f"警告: 删除 '正在生成' 消息失败 (edit, edit too long): {e_del}")
+                                sent_message = None # 标记已删除
+                            # 分段发送原始文本 (不带Markdown转义)
+                            current_pos = 0
+                            while current_pos < len(original_final_text):
+                                chunk = original_final_text[current_pos : current_pos + MAX_MSG_LENGTH]
+                                await bot.send_message(message.chat.id, chunk)
+                                current_pos += MAX_MSG_LENGTH
+                        else:
+                            print(f"编辑消息时发生未知错误 (MarkdownV2, gemini_edit): {md_err}")
+                else:
+                    # 消息太长，删除原临时消息，然后分段发送
+                    print(f"最终编辑消息过长 ({len(final_md_response_escaped)} 字符)，将分段发送。")
+                    if sent_message:
+                        try: 
+                            await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+                        except Exception as e_del: 
+                            print(f"警告: 删除 '正在生成' 消息失败 (edit, too long): {e_del}")
+                        sent_message = None # 标记已删除
+
+                    current_pos = 0
+                    while current_pos < len(original_final_text): # 使用原始文本长度进行循环
+                        original_chunk_for_fallback = original_final_text[current_pos : current_pos + MAX_MSG_LENGTH]
+                        text_to_send_chunk = original_chunk_for_fallback
+                        parse_mode_to_use = None
+                        
+                        if len(escape(original_chunk_for_fallback)) <= MAX_MSG_LENGTH:
+                            text_to_send_chunk = escape(original_chunk_for_fallback)
+                            parse_mode_to_use = "MarkdownV2"
+                        
+                        try:
+                            await bot.send_message(message.chat.id, text_to_send_chunk, parse_mode=parse_mode_to_use)
+                        except Exception as e_md_chunk: 
+                            print(f"MarkdownV2 发送分块失败 ({e_md_chunk})，尝试纯文本 (gemini_edit)...")
+                            await bot.send_message(message.chat.id, original_chunk_for_fallback)
+                        
+                        current_pos += len(original_chunk_for_fallback)
             else:
+                # 如果 text_response 为空的处理逻辑 (保持不变)
                 await bot.edit_message_text("编辑后未能生成文本响应。", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
 
         except Exception as e_gen_content:
@@ -559,3 +658,30 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
                 await bot.reply_to(message, error_message_text)
             except Exception as e_final_error_reply:
                 print(f"gemini_draw: 回复最终错误消息失败: {e_final_error_reply}")
+
+# --- 定义搜索工具 ---
+# 1. 定义函数声明 (告诉模型函数是做什么的，以及它期望的参数)
+simulated_google_search_func = FunctionDeclaration(
+    name="simulated_google_search",
+    description="Performs a simulated Google search for the given query and returns a summary of findings. Use this if you need up-to-date information or information beyond your knowledge cutoff.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "query": types.Schema(type=types.Type.STRING, description="The search query for Google.")
+        },
+        required=["query"]
+    )
+)
+
+# 2. 创建工具对象
+search_tool_definition = Tool(
+    function_declarations=[simulated_google_search_func],
+)
+
+# 3. 实现模拟的搜索函数
+def _perform_simulated_google_search(query: str) -> Dict[str, str]:
+    """模拟执行 Google 搜索。在实际应用中，这里会调用真正的搜索 API。"""
+    print(f"执行模拟搜索，查询: {query}")
+    # 返回一个符合FunctionResponse期望的字典结构
+    # 实际中，这里应该是处理过的搜索结果摘要
+    return {"summary": f"关于 '{query}' 的模拟搜索结果：这是一个包含相关信息的摘要。"}
