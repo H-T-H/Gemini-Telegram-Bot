@@ -360,6 +360,12 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                 try:
                     # 尝试添加工具参数
                     chat_params["tools"] = [google_search_tool]
+                    
+                    # 从 chat_params 中移除可能不兼容的参数
+                    if "safety_settings" in chat_params:
+                        print("移除 safety_settings 参数，该参数在新版 SDK 中不受支持")
+                        safety_settings_copy = chat_params.pop("safety_settings")  # 保存副本以便后续可能的使用
+                    
                     chat_session = gemini_client.chats.create(**chat_params)
                     print("聊天会话创建成功（带搜索工具）")
                     chat_supports_search = True
@@ -386,6 +392,12 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                     for suffix in model_suffixes:
                         try:
                             chat_params["model"] = f"{model_type}{suffix}"
+                            
+                            # 从 chat_params 中移除可能不兼容的参数
+                            if "safety_settings" in chat_params:
+                                print(f"移除 safety_settings 参数（尝试模型变体: {chat_params['model']}）")
+                                safety_settings_copy = chat_params.pop("safety_settings")
+                                
                             chat_session = gemini_client.chats.create(**chat_params)
                             print(f"聊天会话创建成功（使用模型 {chat_params['model']}）")
                             chat_supports_search = True  # 假设这种方式创建的会话支持搜索
@@ -413,10 +425,12 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             except Exception as e_create:
                 print(f"创建聊天会话出错: {e_create}")
                 # 最后尝试：使用普通模式创建聊天会话
+                print("尝试创建普通模式聊天会话（无特殊参数）")
+                # 简化创建参数，只保留模型名称
                 chat_session = gemini_client.chats.create(
-                    model=model_type,
+                    model=model_type
                     # 移除 system_instruction 参数
-                    safety_settings=formatted_safety_settings if formatted_safety_settings else None
+                    # 移除 safety_settings 参数
                 )
                 print("聊天会话创建成功（普通模式，无搜索功能）")
                 chat_session_dict[user_id_str] = chat_session
