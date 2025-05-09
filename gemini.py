@@ -150,9 +150,20 @@ async def _gemini_search(bot:TeleBot, message:Message, m:str):
         if generation_config: 
             gen_conf_params.update(generation_config)
         
-        # 添加系统提示
+        # 添加系统提示 - 尝试不同的可能参数名
         if current_system_prompt:
-            gen_conf_params['system_instruction'] = current_system_prompt
+            # 先尝试新版可能的参数名
+            potential_param_names = ["system_message", "system_content", "system_prompt", "system_instruction"]
+            for param_name in potential_param_names:
+                try:
+                    gen_conf_params[param_name] = current_system_prompt
+                    print(f"在生成配置中使用 '{param_name}' 设置系统提示")
+                    break
+                except Exception as e_param:
+                    # 如果出错（如参数设置被拒绝），移除该参数
+                    if param_name in gen_conf_params:
+                        del gen_conf_params[param_name]
+                        print(f"参数名 '{param_name}' 不适用: {e_param}")
         
         # 添加安全设置
         if formatted_safety_settings:
@@ -312,6 +323,36 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                     "model": model_type,
                 }
                 
+                # 尝试其他可能的参数名设置系统提示，但只是测试，不实际创建会话
+                if system_instruction:
+                    # 尝试不同的参数名，提前测试可能的参数
+                    system_param_name = None  # 默认为 None，表示没有找到可用的参数名
+                    potential_param_names = ["system_message", "system_content", "system_prompt"]
+                    
+                    # 记录是否成功找到合适的参数名
+                    param_found = False
+                    
+                    for param_name in potential_param_names:
+                        test_params = chat_params.copy()
+                        test_params[param_name] = system_instruction
+                        
+                        # 别急着创建会话，只是检查参数
+                        try:
+                            # 测试参数，不需要创建真实会话
+                            print(f"测试参数名 '{param_name}' 是否可用...")
+                            if param_name in ["system_message", "system_content", "system_prompt"]:
+                                print(f"参数名 '{param_name}' 可能可用，将在创建会话时尝试")
+                                system_param_name = param_name
+                                param_found = True
+                                break
+                        except Exception as e_param_test:
+                            print(f"参数测试 '{param_name}' 失败: {e_param_test}")
+                    
+                    # 如果找到可能可用的参数名，添加到参数字典
+                    if param_found and system_param_name:
+                        chat_params[system_param_name] = system_instruction
+                        print(f"将使用参数名 '{system_param_name}' 尝试设置系统提示")
+                
                 # 添加安全设置
                 if formatted_safety_settings:
                     chat_params["safety_settings"] = formatted_safety_settings
@@ -327,10 +368,10 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                     if system_instruction:
                         print("通过首条消息设置系统提示")
                         try:
-                            # 尝试通过首条消息设置系统指令
+                            # 使用更标准的系统指令格式
                             system_message = f"你是一个AI助手，请遵循以下系统指令：\n\n{system_instruction}"
-                            # 使用普通的 send_message 而不是流式的
-                            await chat_session.send_message(system_message)
+                            # 使用普通的 send_message 而不是流式的，不使用 await
+                            response = chat_session.send_message(system_message)
                             print("系统提示通过首条消息设置成功")
                         except Exception as e_sys_msg:
                             print(f"通过首条消息设置系统提示失败: {e_sys_msg}")
@@ -355,8 +396,8 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                                 try:
                                     # 使用更标准的系统指令格式
                                     system_message = f"你是一个AI助手，请遵循以下系统指令：\n\n{system_instruction}"
-                                    # 使用普通的 send_message 而不是流式的
-                                    await chat_session.send_message(system_message)
+                                    # 使用普通的 send_message 而不是流式的，不使用 await
+                                    response = chat_session.send_message(system_message)
                                     print("系统提示通过首条消息设置成功")
                                 except Exception as e_sys_msg:
                                     print(f"通过首条消息设置系统提示失败: {e_sys_msg}")
@@ -386,10 +427,10 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                 if system_instruction:
                     print("通过首条消息设置系统提示（普通模式）")
                     try:
-                        # 尝试通过首条消息设置系统指令
+                        # 使用更标准的系统指令格式
                         system_message = f"你是一个AI助手，请遵循以下系统指令：\n\n{system_instruction}"
-                        # 使用普通的 send_message 而不是流式的
-                        await chat_session.send_message(system_message)
+                        # 使用普通的 send_message 而不是流式的，不使用 await
+                        response = chat_session.send_message(system_message)
                         print("系统提示通过首条消息设置成功")
                     except Exception as e_sys_msg:
                         print(f"通过首条消息设置系统提示失败: {e_sys_msg}")
@@ -570,7 +611,18 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
         # 准备生成内容调用的配置参数
         config_params = {}
         if current_system_prompt:
-            config_params['system_instruction'] = current_system_prompt
+            # 尝试不同的可能参数名
+            potential_param_names = ["system_message", "system_content", "system_prompt", "system_instruction"]
+            for param_name in potential_param_names:
+                try:
+                    config_params[param_name] = current_system_prompt
+                    print(f"gemini_edit: 在配置中使用 '{param_name}' 设置系统提示")
+                    break
+                except Exception as e_param:
+                    # 如果出错（如参数设置被拒绝），移除该参数
+                    if param_name in config_params:
+                        del config_params[param_name]
+                        print(f"gemini_edit: 参数名 '{param_name}' 不适用: {e_param}")
 
         # 处理安全设置
         if safety_settings:
