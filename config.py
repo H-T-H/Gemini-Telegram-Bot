@@ -114,5 +114,6 @@ safety_settings = [
 generation_config = {
     # 移除可能不兼容的响应模态设置
     # "response_modalities": ['Text'],
-    "safety_settings": safety_settings,
+    # 安全设置应直接传递给模型，而不是嵌套在这里
+    # "safety_settings": safety_settings,
 }
