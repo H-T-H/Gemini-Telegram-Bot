@@ -5,7 +5,7 @@ from google.genai import types # Keep this for future use with new SDK
 
 # 中英文消息配置
 messages = {
-    "zh": {  # 中文消息
+    "cn": {  # 中文消息
         "error_info": "⚠️⚠️⚠️\n出现错误！\n请尝试更改您的提示或联系管理员！",
         "before_generate_info": "🤖正在生成🤖",
         "download_pic_notify": "🤖正在加载图片🤖",
@@ -101,7 +101,7 @@ command_descriptions = {
 conf = {
     "model_1": "gemini-2.5-flash-preview-04-17",
     "model_2": "gemini-2.5-pro-exp-03-25",
-    "model_3": "gemini-2.0-flash-exp", # for other uses or as a non-image default if needed
+    "model_3": "gemini-2.0-flash-preview-image-generation", # 与 imagen_model_name 保持一致
     "imagen_model_name": "gemini-2.0-flash-preview-image-generation", # 使用更新的图像生成模型
     "draw_num_images": 1, # /draw 命令生成的图片数量
     "draw_aspect_ratio": "1:1", # /draw 命令生成图片的宽高比 (e.g., "1:1", "16:9", "3:4")
