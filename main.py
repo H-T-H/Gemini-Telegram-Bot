@@ -5,7 +5,18 @@ import re
 import telebot
 from telebot.async_telebot import AsyncTeleBot
 import google.generativeai as genai
-import handlers
+
+# 添加更详细的异常处理
+try:
+    print("Trying to import handlers...")
+    import handlers
+    print("Successfully imported handlers.")
+except Exception as e:
+    print(f"Error importing handlers: {e}")
+    print("Traceback:")
+    traceback.print_exc()
+    raise
+
 from config import conf, generation_config, safety_settings, command_descriptions
 
 # Init args
