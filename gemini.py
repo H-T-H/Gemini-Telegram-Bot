@@ -73,6 +73,11 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             chat_dict[str(message.from_user.id)] = chat
         else:
             chat = chat_dict[str(message.from_user.id)]
+            
+        # 根据用户语言添加中文回复请求
+        lang = get_user_lang(message.from_user.id)
+        if lang == "zh" and "用中文回复" not in m and "中文回答" not in m:
+            m += "，请用中文回复"
 
         response = await chat.send_message_stream(m)
 
@@ -188,8 +193,21 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
         
         # Prepare contents for the chat session: a list containing the PIL Image object and the prompt string.
         current_contents_for_chat = [image_pil] # Start with the image
+        
+        # 根据用户语言选择默认提示和回复语言请求
+        lang = get_user_lang(message.from_user.id)
         if prompt: # If user provided a caption, add it to the contents
+            # 如果用户提供了描述，就直接使用
+            if lang == "zh":
+                # 中文用户：如果提示中没有包含语言请求，自动添加中文回复请求
+                if "用中文回复" not in prompt and "中文回答" not in prompt:
+                    prompt += "，请用中文回复"
             current_contents_for_chat.append(prompt)
+        else: # If no caption, add a generic prompt based on user language
+            if lang == "zh":
+                current_contents_for_chat.append("描述这张图片，请用中文回复")
+            else:
+                current_contents_for_chat.append("Describe this image")
         
         # Get or create chat session for the selected model
         chat_session = None
