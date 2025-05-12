@@ -65,6 +65,17 @@ async def switch(message: Message, bot: TeleBot) -> None:
         await bot.reply_to( message , "Now you are using "+model_1)
 
 async def gemini_private_handler(message: Message, bot: TeleBot) -> None:
+    if message.content_type == 'photo': # Check if the message is a photo
+        s = message.caption or "" # Get caption as prompt
+        try:
+            file_path = await bot.get_file(message.photo[-1].file_id)
+            photo_file = await bot.download_file(file_path.file_path)
+            await gemini.gemini_image_understand(bot, message, photo_file, prompt=s)
+        except Exception:
+            traceback.print_exc()
+            await bot.reply_to(message, error_info)
+        return
+
     m = message.text.strip()
     if str(message.from_user.id) not in default_model_dict:
         default_model_dict[str(message.from_user.id)] = True
@@ -76,30 +87,43 @@ async def gemini_private_handler(message: Message, bot: TeleBot) -> None:
             await gemini.gemini_stream(bot,message,m,model_2)
 
 async def gemini_photo_handler(message: Message, bot: TeleBot) -> None:
-    if message.chat.type != "private":
-        s = message.caption or ""
-        if not s or not (s.startswith("/gemini")):
-            return
+    s = message.caption or ""
+    # If it's a private chat and no command, or it's a command that is NOT /edit (or other future model_3 specific commands)
+    if message.chat.type == "private" and not s.startswith("/"):
         try:
-            m = s.strip().split(maxsplit=1)[1].strip() if len(s.strip().split(maxsplit=1)) > 1 else ""
             file_path = await bot.get_file(message.photo[-1].file_id)
             photo_file = await bot.download_file(file_path.file_path)
+            # Use the caption as a prompt if available
+            await gemini.gemini_image_understand(bot, message, photo_file, prompt=s)
         except Exception:
             traceback.print_exc()
             await bot.reply_to(message, error_info)
-            return
-        await gemini.gemini_edit(bot, message, m, photo_file)
-    else:
-        s = message.caption or ""
+        return
+    
+    # Existing logic for commands like /edit or for group chats (where we might assume commands are necessary for image processing)
+    # Or if the command is specifically /edit (or others that should use model_3)
+    if message.chat.type != "private" or (s.startswith("/edit")):
         try:
-            m = s.strip().split(maxsplit=1)[1].strip() if len(s.strip().split(maxsplit=1)) > 1 else ""
+            # For /edit, we expect the command prefix, so we try to strip it.
+            # If other commands use model_3 with photos, adjust stripping accordingly.
+            m = ""
+            if s.startswith("/edit"):
+                 m = s.strip().split(maxsplit=1)[1].strip() if len(s.strip().split(maxsplit=1)) > 1 else ""
+            else: # For group chats without specific command, or other future commands.
+                 m = s # Use the whole caption as prompt for model_3 if not /edit
+            
             file_path = await bot.get_file(message.photo[-1].file_id)
             photo_file = await bot.download_file(file_path.file_path)
+            await gemini.gemini_edit(bot, message, m, photo_file)
         except Exception:
             traceback.print_exc()
             await bot.reply_to(message, error_info)
-            return
-        await gemini.gemini_edit(bot, message, m, photo_file)
+        return
+    # Fallback for private chat with other commands if any (currently none that take photos directly without specific handling)
+    # This part might need adjustment if new photo commands are added that don't use model_3
+    # For now, if it's private, has a command, and it's not /edit, it's unhandled for photos by this logic block.
+    # Consider adding a default reply or error if a private chat photo message with an unhandled command is received.
+
 
 async def gemini_edit_handler(message: Message, bot: TeleBot) -> None:
     if not message.photo:
@@ -112,7 +136,8 @@ async def gemini_edit_handler(message: Message, bot: TeleBot) -> None:
         photo_file = await bot.download_file(file_path.file_path)
     except Exception as e:
         traceback.print_exc()
-        await bot.reply_to(message, e.str())
+        # It's better to show a generic error or the specific error if it's safe to display
+        await bot.reply_to(message, f"{error_info}. Details: {str(e)}")
         return
     await gemini.gemini_edit(bot, message, m, photo_file)
 

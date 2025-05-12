@@ -122,6 +122,67 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
             photo = part.inline_data.data
             await bot.send_photo(message.chat.id, photo)
 
+async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: bytes, prompt: str = ""):
+    sent_message = None
+    try:
+        sent_message = await bot.reply_to(message, "🤖 Understanding image...")
+        image = Image.open(io.BytesIO(photo_file))
+        
+        # Determine the model based on user's default setting
+        current_model = model_1 # Default to model_1
+        if str(message.from_user.id) in default_model_dict and not default_model_dict[str(message.from_user.id)]:
+            current_model = model_2
+
+        contents = [image]
+        if prompt:
+            contents.append(prompt)
+
+        response = await client.aio.models.generate_content(
+            model=current_model, 
+            contents=contents,
+            config=generation_config,
+            # Ensure that the stream parameter is not used here if not supported for image and text combined
+        )
+        
+        # Assuming the response for image understanding is primarily text
+        # and located in response.text or similar attribute based on Gemini API for image inputs
+        
+        text_response = ""
+        # Iterate through parts if the response structure is like multi-modal,
+        # otherwise, directly access .text if available and appropriate.
+        if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, 'text') and part.text:
+                    text_response += part.text
+        elif hasattr(response, 'text'): # Fallback for simpler text response
+             text_response = response.text
+
+        if text_response:
+            await bot.edit_message_text(
+                escape(text_response),
+                chat_id=sent_message.chat.id,
+                message_id=sent_message.message_id,
+                parse_mode="MarkdownV2"
+            )
+        else:
+            await bot.edit_message_text(
+                "🤖 Couldn't understand the image or no text response found.",
+                chat_id=sent_message.chat.id,
+                message_id=sent_message.message_id
+            )
+
+    except Exception as e:
+        traceback.print_exc()
+        error_message = f"{error_info}\\nError details: {str(e)}"
+        if sent_message:
+            await bot.edit_message_text(
+                error_message,
+                chat_id=sent_message.chat.id,
+                message_id=sent_message.message_id
+            )
+        else:
+            await bot.reply_to(message, error_message)
+
 async def gemini_draw(bot:TeleBot, message:Message, m:str):
     chat_dict = gemini_draw_dict
     if str(message.from_user.id) not in chat_dict:
