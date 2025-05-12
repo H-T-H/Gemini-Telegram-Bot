@@ -84,7 +84,14 @@ safety_settings = [
     )
 ]
 
+# 为文本模型创建配置
 generation_config = {
+    "response_modalities": ['Text'],
+    "safety_settings": safety_settings,
+}
+
+# 为图像生成模型创建配置
+draw_generation_config = {
     "response_modalities": ['Text', 'IMAGE'],
     "safety_settings": safety_settings,
 }

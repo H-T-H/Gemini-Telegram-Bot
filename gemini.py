@@ -6,7 +6,7 @@ from PIL import Image
 from telebot.types import Message
 from md2tgmd import escape
 from telebot import TeleBot
-from config import conf, generation_config, lang_settings, DEFAULT_SYSTEM_PROMPT
+from config import conf, generation_config, draw_generation_config, lang_settings, DEFAULT_SYSTEM_PROMPT
 from google import genai
 from google.genai import types
 
@@ -417,7 +417,7 @@ async def gemini_draw(bot:TeleBot, message:Message, m:str):
     if str(message.from_user.id) not in chat_dict:
         chat = client.aio.chats.create(
             model=model_3,
-            config=generation_config,
+            config=draw_generation_config,
         )
         chat_dict[str(message.from_user.id)] = chat
     else:
