@@ -200,12 +200,12 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
             try:
                 await bot.edit_message_text(
                     escape(full_response_text), # Send the fully accumulated and escaped text
-                    chat_id=sent_message.chat.id,\
-                    message_id=sent_message.message_id,\
-                    parse_mode="MarkdownV2"\
-                )\
+                    chat_id=sent_message.chat.id,
+                    message_id=sent_message.message_id,
+                    parse_mode="MarkdownV2"
+                )
             except Exception: # Fallback to sending raw text if markdown parsing fails on the final message
-                await bot.edit_message_text(full_response_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)\
+                await bot.edit_message_text(full_response_text, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
         elif last_block_reason or last_finish_reason_safety: # If no text, but we detected a block/safety stop
             block_message = "🤖 The response for the image was blocked."
             if last_block_reason:
@@ -214,11 +214,11 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
                 block_message += " Finished due to safety settings."
             await bot.edit_message_text(block_message, chat_id=sent_message.chat.id, message_id=sent_message.message_id)
         else: # No text and no specific block reason found on chunks
-            await bot.edit_message_text(\
-                f"🤖 Model {current_model_name} did not provide a text response for the image.",\
-                chat_id=sent_message.chat.id,\
-                message_id=sent_message.message_id\
-            )\
+            await bot.edit_message_text(
+                f"🤖 Model {current_model_name} did not provide a text response for the image.",
+                chat_id=sent_message.chat.id,
+                message_id=sent_message.message_id
+            )
 
     # Removed specific catch for BlockedPromptException due to AttributeError
     # General API errors will be caught by the Exception block below.
@@ -228,18 +228,20 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
         traceback.print_exc()
         error_detail_str = str(e)
         # Check for the specific API error about text-only output
-        specific_api_error_check = ("This model only supports text output." in error_detail_str or \
-                                      "only supports text and HHFM function calling" in error_detail_str) and \
-                                     ("INVALID_ARGUMENT" in error_detail_str.upper() or isinstance(e, getattr(genai.errors, 'InvalidArgumentError', Exception)))
+        specific_api_error_check = (
+            ("This model only supports text output." in error_detail_str or 
+             "only supports text and HHFM function calling" in error_detail_str) and 
+            ("INVALID_ARGUMENT" in error_detail_str.upper() or isinstance(e, getattr(genai.errors, 'InvalidArgumentError', Exception)))
+        )
         
-        error_message = f"{error_info}\\\nError details: {error_detail_str}"
+        error_message = f"{error_info}\nError details: {error_detail_str}"
         if specific_api_error_check: # If it is the text-only error, provide a more helpful message
-            error_message = (\
-                f"{error_info}\\\n" \
-                f"API Error: {error_detail_str}\\\n" \
-                f"This error suggests that the model '{current_model_name_for_error_msg}\' (as configured in your config.py) " \
-                f"does not support direct image input as attempted, or the input format/parts are incorrect for this model. " \
-                f"Please ensure that '{model_1}\' and '{model_2}\' in your config.py are multimodal model names (e.g., 'gemini-1.5-flash-latest') " \
+            error_message = (
+                f"{error_info}\n" 
+                f"API Error: {error_detail_str}\n" 
+                f"This error suggests that the model '{current_model_name_for_error_msg}' (as configured in your config.py) " 
+                f"does not support direct image input as attempted, or the input format/parts are incorrect for this model. " 
+                f"Please ensure that '{model_1}' and '{model_2}' in your config.py are multimodal model names (e.g., 'gemini-1.5-flash-latest') " 
                 f"that can process images and text combined in this manner. If you are using an older model like 'gemini-pro', it will not work with images."
             )
         
