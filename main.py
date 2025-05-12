@@ -96,7 +96,6 @@ async def main():
         none_stop=True,
         interval=1,
         timeout=20,
-        long_polling_timeout=20,
         allowed_updates=["message", "callback_query"],
         skip_pending=True,
         request_timeout=20
