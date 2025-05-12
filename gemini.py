@@ -6,17 +6,19 @@ from PIL import Image
 from telebot.types import Message
 from md2tgmd import escape
 from telebot import TeleBot
-from config import conf, generation_config
+from config import conf, generation_config, lang_settings
 from google import genai
 
 gemini_draw_dict = {}
 gemini_chat_dict = {}
 gemini_pro_chat_dict = {}
 default_model_dict = {}
+user_language_dict = {}  # 新增：用户语言偏好字典
 
 model_1                 =       conf["model_1"]
 model_2                 =       conf["model_2"]
 model_3                 =       conf["model_3"]
+default_language        =       conf["default_language"]
 error_info              =       conf["error_info"]
 before_generate_info    =       conf["before_generate_info"]
 download_pic_notify     =       conf["download_pic_notify"]
@@ -24,6 +26,36 @@ download_pic_notify     =       conf["download_pic_notify"]
 search_tool = {'google_search': {}}
 
 client = genai.Client(api_key=sys.argv[2])
+
+# 根据用户ID获取语言设置
+def get_user_lang(user_id):
+    user_id_str = str(user_id)
+    if user_id_str not in user_language_dict:
+        user_language_dict[user_id_str] = default_language
+    return user_language_dict[user_id_str]
+
+# 获取用户对应语言的提示文案
+def get_user_text(user_id, text_key):
+    lang = get_user_lang(user_id)
+    return lang_settings[lang].get(text_key, lang_settings[default_language].get(text_key, ""))
+
+# 切换用户语言
+async def switch_language(bot: TeleBot, message: Message):
+    user_id_str = str(message.from_user.id)
+    current_lang = get_user_lang(user_id_str)
+    
+    # 切换语言
+    new_lang = "en" if current_lang == "zh" else "zh"
+    user_language_dict[user_id_str] = new_lang
+    
+    # 发送语言切换确认消息
+    await bot.reply_to(message, lang_settings[new_lang]["language_switched"])
+
+# 获取当前语言状态
+async def get_language(bot: TeleBot, message: Message):
+    user_id_str = str(message.from_user.id)
+    current_lang = get_user_lang(user_id_str)
+    await bot.reply_to(message, lang_settings[current_lang]["language_current"])
 
 async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
     sent_message = None
@@ -134,16 +166,30 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
             chat_dict_to_use = gemini_pro_chat_dict
         current_model_name_for_error_msg = current_model_name
 
-        sent_message = await bot.reply_to(message, f"🤖 Understanding image with {current_model_name}...")
+        # 使用本地化的提示
+        understanding_msg = f"🤖 {get_user_text(message.from_user.id, 'before_generate_info')} {current_model_name}..."
+        sent_message = await bot.reply_to(message, understanding_msg)
         
+        # Load and optimize the image to reduce server load
         image_pil = Image.open(io.BytesIO(photo_file))
+        
+        # Resize large images to reduce processing load
+        max_dimension = 1024  # Maximum dimension for either width or height
+        if max(image_pil.width, image_pil.height) > max_dimension:
+            # Calculate new dimensions while preserving aspect ratio
+            if image_pil.width > image_pil.height:
+                new_width = max_dimension
+                new_height = int(image_pil.height * (max_dimension / image_pil.width))
+            else:
+                new_height = max_dimension
+                new_width = int(image_pil.width * (max_dimension / image_pil.height))
+            # Resize the image
+            image_pil = image_pil.resize((new_width, new_height), Image.LANCZOS)
         
         # Prepare contents for the chat session: a list containing the PIL Image object and the prompt string.
         current_contents_for_chat = [image_pil] # Start with the image
         if prompt: # If user provided a caption, add it to the contents
             current_contents_for_chat.append(prompt)
-        else: # If no caption, add a generic prompt for the model to describe the image
-            current_contents_for_chat.append("Describe this image.")
         
         # Get or create chat session for the selected model
         chat_session = None
@@ -232,16 +278,27 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
                                       "only supports text and HHFM function calling" in error_detail_str) and \
                                      ("INVALID_ARGUMENT" in error_detail_str.upper() or isinstance(e, getattr(genai.errors, 'InvalidArgumentError', Exception)))
         
-        error_message = f"{error_info}\nError details: {error_detail_str}"
+        error_message = f"{get_user_text(message.from_user.id, 'error_info')}\nError details: {error_detail_str}"
         if specific_api_error_check: # If it is the text-only error, provide a more helpful message
-            error_message = (
-                f"{error_info}\n" 
-                f"API Error: {error_detail_str}\n" 
-                f"This error suggests that the model '{current_model_name_for_error_msg}' (as configured in your config.py) "
-                f"does not support direct image input as attempted, or the input format/parts are incorrect for this model. "
-                f"Please ensure that '{model_1}' and '{model_2}' in your config.py are multimodal model names (e.g., 'gemini-1.5-flash-latest') "
-                f"that can process images and text combined in this manner. If you are using an older model like 'gemini-pro', it will not work with images."
-            )
+            lang = get_user_lang(message.from_user.id)
+            if lang == "zh":
+                error_message = (
+                    f"{get_user_text(message.from_user.id, 'error_info')}\n" 
+                    f"API错误: {error_detail_str}\n" 
+                    f"此错误表明模型 '{current_model_name_for_error_msg}'（如在config.py中配置的）"
+                    f"不支持直接图像输入，或输入格式/部分对该模型不正确。"
+                    f"请确保 '{model_1}' 和 '{model_2}' 在config.py中是多模态模型名称（例如 'gemini-1.5-flash-latest'），"
+                    f"能够以这种方式处理图像和文本组合。如果您使用的是旧模型如 'gemini-pro'，它将无法处理图像。"
+                )
+            else:
+                error_message = (
+                    f"{get_user_text(message.from_user.id, 'error_info')}\n" 
+                    f"API Error: {error_detail_str}\n" 
+                    f"This error suggests that the model '{current_model_name_for_error_msg}' (as configured in your config.py) "
+                    f"does not support direct image input as attempted, or the input format/parts are incorrect for this model. "
+                    f"Please ensure that '{model_1}' and '{model_2}' in your config.py are multimodal model names (e.g., 'gemini-1.5-flash-latest') "
+                    f"that can process images and text combined in this manner. If you are using an older model like 'gemini-pro', it will not work with images."
+                )
         
         if sent_message: # If a message was already sent to the user, edit it with the error
             await bot.edit_message_text(error_message, chat_id=sent_message.chat.id, message_id=sent_message.message_id)

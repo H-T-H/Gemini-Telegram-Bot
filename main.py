@@ -27,7 +27,9 @@ async def main():
         telebot.types.BotCommand("draw", "draw picture"),
         telebot.types.BotCommand("edit", "edit photo"),
         telebot.types.BotCommand("clear", "Clear all history"),
-        telebot.types.BotCommand("switch","switch default model")
+        telebot.types.BotCommand("switch", "switch default model"),
+        telebot.types.BotCommand("lang", "switch language (中/英)"),
+        telebot.types.BotCommand("language", "show current language")
     ],
 )
     print("Bot init done.")
@@ -40,6 +42,8 @@ async def main():
     bot.register_message_handler(handlers.gemini_edit_handler,           commands=['edit'],          pass_bot=True)
     bot.register_message_handler(handlers.clear,                         commands=['clear'],         pass_bot=True)
     bot.register_message_handler(handlers.switch,                        commands=['switch'],        pass_bot=True)
+    bot.register_message_handler(handlers.language_switch_handler,       commands=['lang'],          pass_bot=True)
+    bot.register_message_handler(handlers.language_status_handler,       commands=['language'],      pass_bot=True)
     bot.register_message_handler(handlers.gemini_photo_handler,          content_types=["photo"],    pass_bot=True)
     bot.register_message_handler(
         handlers.gemini_private_handler,
