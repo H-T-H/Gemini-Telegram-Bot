@@ -193,7 +193,7 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
                         print(f"Streaming update error for image understanding: {e_stream}")
                     elif "parse markdown" in str(e_stream).lower(): # Attempt to send raw text if markdown parsing fails
                          await bot.edit_message_text(full_response_text + "...", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
-                         last_update_time = current_time
+                         last_update_time = current_time # Ensure this line is indented correctly under the elif
 
         # Final update for the completed response
         if full_response_text:
