@@ -33,6 +33,6 @@ safety_settings = [
 ]
 
 generation_config = types.GenerateContentConfig(
-    response_modalities=['Text', 'Image'],
+    response_modalities=['Text'],
     safety_settings=safety_settings,
 )
