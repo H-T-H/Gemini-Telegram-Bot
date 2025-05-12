@@ -84,7 +84,7 @@ safety_settings = [
     )
 ]
 
-generation_config = types.GenerateContentConfig(
-    response_modalities=['Text'],
-    safety_settings=safety_settings,
-)
+generation_config = {
+    "response_modalities": ['Text'],
+    "safety_settings": safety_settings,
+}

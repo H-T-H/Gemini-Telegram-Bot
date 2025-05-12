@@ -8,6 +8,7 @@ from md2tgmd import escape
 from telebot import TeleBot
 from config import conf, generation_config, lang_settings, DEFAULT_SYSTEM_PROMPT
 from google import genai
+from google.genai import types
 
 gemini_draw_dict = {}
 gemini_chat_dict = {}
@@ -122,22 +123,27 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             chat_dict = gemini_pro_chat_dict
 
         if str(message.from_user.id) not in chat_dict:
-            # 创建聊天会话，但不直接设置系统提示词
-            chat = client.aio.chats.create(
-                model=model_type, 
-                config={'tools': [search_tool]}
-            )
-            chat_dict[str(message.from_user.id)] = chat
-            
             # 获取用户系统提示词
             system_prompt = get_system_prompt(message.from_user.id)
             
-            # 使用system角色发送系统提示词
+            # 创建聊天会话，并使用系统提示词
             try:
-                await chat.send_message(system_prompt, role="system")
+                chat = client.aio.chats.create(
+                    model=model_type,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        tools=[search_tool]
+                    )
+                )
+                chat_dict[str(message.from_user.id)] = chat
             except Exception as e:
-                print(f"Failed to set system prompt: {e}")
-                # 如果设置系统提示词失败，我们继续运行，只是不使用系统提示词
+                print(f"Failed to set system prompt in chat creation: {e}")
+                # 如果设置系统提示词失败，尝试创建没有系统提示词的聊天
+                chat = client.aio.chats.create(
+                    model=model_type, 
+                    config={'tools': [search_tool]}
+                )
+                chat_dict[str(message.from_user.id)] = chat
         else:
             chat = chat_dict[str(message.from_user.id)]
             
@@ -209,14 +215,13 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             await bot.reply_to(message, f"{error_info}\nError details: {str(e)}")
 
 async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes):
-
     image = Image.open(io.BytesIO(photo_file))
     try:
         response = await client.aio.models.generate_content(
-        model=model_3,
-        contents=[m, image],
-        config=generation_config
-    )
+            model=model_3,
+            contents=[m, image],
+            config=types.GenerateContentConfig(**generation_config)
+        )
     except Exception as e:
         await bot.send_message(message.chat.id, e.str())
     for part in response.candidates[0].content.parts:
@@ -279,22 +284,28 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
         # Get or create chat session for the selected model
         chat_session = None
         if str(message.from_user.id) not in chat_dict_to_use:
-            # 创建聊天会话，但不直接设置系统提示词
-            chat_session = client.aio.chats.create(
-                model=current_model_name, 
-                config=generation_config
-            ) 
-            chat_dict_to_use[str(message.from_user.id)] = chat_session
-            
             # 获取用户系统提示词
             system_prompt = get_system_prompt(message.from_user.id)
             
-            # 使用system角色发送系统提示词
+            # 创建聊天会话，使用系统提示词
             try:
-                await chat_session.send_message(system_prompt, role="system")
+                # 创建聊天会话，并正确设置系统提示词
+                chat_session = client.aio.chats.create(
+                    model=current_model_name, 
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        **generation_config
+                    )
+                )
+                chat_dict_to_use[str(message.from_user.id)] = chat_session
             except Exception as e:
                 print(f"Failed to set system prompt for image understanding: {e}")
-                # 如果设置系统提示词失败，我们继续运行，只是不使用系统提示词
+                # 如果设置系统提示词失败，尝试不使用系统提示词创建聊天会话
+                chat_session = client.aio.chats.create(
+                    model=current_model_name, 
+                    config=generation_config
+                )
+                chat_dict_to_use[str(message.from_user.id)] = chat_session
         else:
             chat_session = chat_dict_to_use[str(message.from_user.id)]
         
@@ -404,22 +415,27 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
 async def gemini_draw(bot:TeleBot, message:Message, m:str):
     chat_dict = gemini_draw_dict
     if str(message.from_user.id) not in chat_dict:
-        # 创建聊天会话，但不直接设置系统提示词
-        chat = client.aio.chats.create(
-            model=model_3,
-            config=generation_config
-        )
-        chat_dict[str(message.from_user.id)] = chat
-        
         # 获取用户系统提示词
         system_prompt = get_system_prompt(message.from_user.id)
         
-        # 使用system角色发送系统提示词
+        # 创建聊天会话并设置系统提示词
         try:
-            await chat.send_message(system_prompt, role="system")
+            chat = client.aio.chats.create(
+                model=model_3,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    **generation_config
+                )
+            )
+            chat_dict[str(message.from_user.id)] = chat
         except Exception as e:
             print(f"Failed to set system prompt for drawing: {e}")
-            # 如果设置系统提示词失败，我们继续运行，只是不使用系统提示词
+            # 如果设置系统提示词失败，尝试不使用系统提示词创建聊天会话
+            chat = client.aio.chats.create(
+                model=model_3,
+                config=generation_config
+            )
+            chat_dict[str(message.from_user.id)] = chat
     else:
         chat = chat_dict[str(message.from_user.id)]
     
