@@ -6,7 +6,10 @@ from config import conf, lang_settings
 import gemini
 
 # 直接从 gemini 模块导入语言相关功能
-from gemini import get_user_text, get_user_lang, switch_language, get_language
+from gemini import (
+    get_user_text, get_user_lang, switch_language, get_language,
+    set_system_prompt, delete_system_prompt, reset_system_prompt, show_system_prompt
+)
 
 error_info              =       conf["error_info"]
 before_generate_info    =       conf["before_generate_info"]
@@ -181,3 +184,24 @@ async def draw_handler(message: Message, bot: TeleBot) -> None:
         await gemini.gemini_draw(bot, message, m)
     finally:
         await bot.delete_message(chat_id=message.chat.id, message_id=drawing_msg_obj.message_id)
+
+# 系统提示词设置处理函数
+async def system_prompt_handler(message: Message, bot: TeleBot) -> None:
+    try:
+        prompt = message.text.strip().split(maxsplit=1)[1].strip()
+        await set_system_prompt(bot, message, prompt)
+    except IndexError:
+        help_msg = get_user_text(message.from_user.id, "system_prompt_help")
+        await bot.reply_to(message, help_msg)
+
+# 删除系统提示词处理函数
+async def system_prompt_clear_handler(message: Message, bot: TeleBot) -> None:
+    await delete_system_prompt(bot, message)
+
+# 重置系统提示词处理函数
+async def system_prompt_reset_handler(message: Message, bot: TeleBot) -> None:
+    await reset_system_prompt(bot, message)
+
+# 显示系统提示词处理函数
+async def system_prompt_show_handler(message: Message, bot: TeleBot) -> None:
+    await show_system_prompt(bot, message)

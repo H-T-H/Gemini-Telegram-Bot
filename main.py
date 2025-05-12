@@ -30,7 +30,11 @@ async def main():
         telebot.types.BotCommand("clear", "清除历史记录"),
         telebot.types.BotCommand("switch", "切换默认模型"),
         telebot.types.BotCommand("lang", "切换语言 (中/英)"),
-        telebot.types.BotCommand("language", "显示当前语言")
+        telebot.types.BotCommand("language", "显示当前语言"),
+        telebot.types.BotCommand("system", "设置系统提示词"),
+        telebot.types.BotCommand("system_clear", "删除系统提示词"),
+        telebot.types.BotCommand("system_reset", "重置系统提示词"),
+        telebot.types.BotCommand("system_show", "显示当前系统提示词")
     ]
     
     menu_en = [
@@ -42,7 +46,11 @@ async def main():
         telebot.types.BotCommand("clear", "Clear all history"),
         telebot.types.BotCommand("switch", "switch default model"),
         telebot.types.BotCommand("lang", "switch language (中/英)"),
-        telebot.types.BotCommand("language", "show current language")
+        telebot.types.BotCommand("language", "show current language"),
+        telebot.types.BotCommand("system", "set system prompt"),
+        telebot.types.BotCommand("system_clear", "delete system prompt"),
+        telebot.types.BotCommand("system_reset", "reset system prompt"),
+        telebot.types.BotCommand("system_show", "show current system prompt")
     ]
     
     # 默认使用中文菜单
@@ -83,6 +91,10 @@ async def main():
     bot.register_message_handler(handlers.switch,                        commands=['switch'],        pass_bot=True)
     bot.register_message_handler(language_switch_handler_with_menu,      commands=['lang'],          pass_bot=True)
     bot.register_message_handler(handlers.language_status_handler,       commands=['language'],      pass_bot=True)
+    bot.register_message_handler(handlers.system_prompt_handler,         commands=['system'],        pass_bot=True)
+    bot.register_message_handler(handlers.system_prompt_clear_handler,   commands=['system_clear'],  pass_bot=True)
+    bot.register_message_handler(handlers.system_prompt_reset_handler,   commands=['system_reset'],  pass_bot=True)
+    bot.register_message_handler(handlers.system_prompt_show_handler,    commands=['system_show'],   pass_bot=True)
     bot.register_message_handler(handlers.gemini_photo_handler,          content_types=["photo"],    pass_bot=True)
     bot.register_message_handler(
         handlers.gemini_private_handler,
