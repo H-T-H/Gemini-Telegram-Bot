@@ -6,7 +6,7 @@ from PIL import Image
 from telebot.types import Message
 from md2tgmd import escape
 from telebot import TeleBot
-from config import conf, generation_config, lang_settings
+from config import conf, generation_config, lang_settings, DEFAULT_SYSTEM_PROMPT
 from google import genai
 
 gemini_draw_dict = {}
@@ -14,6 +14,7 @@ gemini_chat_dict = {}
 gemini_pro_chat_dict = {}
 default_model_dict = {}
 user_language_dict = {}  # 新增：用户语言偏好字典
+user_system_prompt_dict = {}  # 用户系统提示词字典
 
 model_1                 =       conf["model_1"]
 model_2                 =       conf["model_2"]
@@ -57,6 +58,58 @@ async def get_language(bot: TeleBot, message: Message):
     current_lang = get_user_lang(user_id_str)
     await bot.reply_to(message, lang_settings[current_lang]["language_current"])
 
+# 获取用户系统提示词，如果没有设置则返回默认值
+def get_system_prompt(user_id):
+    user_id_str = str(user_id)
+    return user_system_prompt_dict.get(user_id_str, DEFAULT_SYSTEM_PROMPT)
+
+# 设置用户系统提示词
+async def set_system_prompt(bot: TeleBot, message: Message, prompt: str):
+    user_id_str = str(message.from_user.id)
+    user_system_prompt_dict[user_id_str] = prompt
+    
+    # 清除该用户的聊天历史，以便新的系统提示词生效
+    if user_id_str in gemini_chat_dict:
+        del gemini_chat_dict[user_id_str]
+    if user_id_str in gemini_pro_chat_dict:
+        del gemini_pro_chat_dict[user_id_str]
+    
+    confirmation_msg = f"{get_user_text(message.from_user.id, 'system_prompt_set')}\n{prompt}"
+    await bot.reply_to(message, confirmation_msg)
+
+# 删除用户系统提示词
+async def delete_system_prompt(bot: TeleBot, message: Message):
+    user_id_str = str(message.from_user.id)
+    if user_id_str in user_system_prompt_dict:
+        del user_system_prompt_dict[user_id_str]
+    
+    # 清除该用户的聊天历史，以便移除系统提示词生效
+    if user_id_str in gemini_chat_dict:
+        del gemini_chat_dict[user_id_str]
+    if user_id_str in gemini_pro_chat_dict:
+        del gemini_pro_chat_dict[user_id_str]
+    
+    await bot.reply_to(message, get_user_text(message.from_user.id, 'system_prompt_deleted'))
+
+# 重置用户系统提示词为默认值
+async def reset_system_prompt(bot: TeleBot, message: Message):
+    user_id_str = str(message.from_user.id)
+    user_system_prompt_dict[user_id_str] = DEFAULT_SYSTEM_PROMPT
+    
+    # 清除该用户的聊天历史，以便默认系统提示词生效
+    if user_id_str in gemini_chat_dict:
+        del gemini_chat_dict[user_id_str]
+    if user_id_str in gemini_pro_chat_dict:
+        del gemini_pro_chat_dict[user_id_str]
+    
+    await bot.reply_to(message, get_user_text(message.from_user.id, 'system_prompt_reset'))
+
+# 显示当前系统提示词
+async def show_system_prompt(bot: TeleBot, message: Message):
+    user_id = message.from_user.id
+    prompt = get_system_prompt(user_id)
+    await bot.reply_to(message, f"{get_user_text(user_id, 'system_prompt_current')}\n{prompt}")
+
 async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
     sent_message = None
     try:
@@ -69,7 +122,15 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
             chat_dict = gemini_pro_chat_dict
 
         if str(message.from_user.id) not in chat_dict:
-            chat = client.aio.chats.create(model=model_type, config={'tools': [search_tool]})
+            # 获取用户系统提示词
+            system_prompt = get_system_prompt(message.from_user.id)
+            
+            # 创建聊天时设置系统提示词
+            chat = client.aio.chats.create(
+                model=model_type, 
+                config={'tools': [search_tool]},
+                system_instruction=system_prompt  # 添加系统提示词
+            )
             chat_dict[str(message.from_user.id)] = chat
         else:
             chat = chat_dict[str(message.from_user.id)]
@@ -212,10 +273,16 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
         # Get or create chat session for the selected model
         chat_session = None
         if str(message.from_user.id) not in chat_dict_to_use:
+            # 获取用户系统提示词
+            system_prompt = get_system_prompt(message.from_user.id)
+            
             # Use generation_config when creating a new chat for image understanding.
-            # Note: If 'tools' are in generation_config and cause issues with multimodal chat, 
-            # this might need adjustment (e.g., a specific config for image chats).
-            chat_session = client.aio.chats.create(model=current_model_name, config=generation_config) 
+            # 创建聊天时设置系统提示词
+            chat_session = client.aio.chats.create(
+                model=current_model_name, 
+                config=generation_config,
+                system_instruction=system_prompt  # 添加系统提示词
+            ) 
             chat_dict_to_use[str(message.from_user.id)] = chat_session
         else:
             chat_session = chat_dict_to_use[str(message.from_user.id)]
@@ -326,13 +393,22 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
 async def gemini_draw(bot:TeleBot, message:Message, m:str):
     chat_dict = gemini_draw_dict
     if str(message.from_user.id) not in chat_dict:
+        # 获取用户系统提示词
+        system_prompt = get_system_prompt(message.from_user.id)
+        
         chat = client.aio.chats.create(
             model=model_3,
             config=generation_config,
+            system_instruction=system_prompt  # 添加系统提示词
         )
         chat_dict[str(message.from_user.id)] = chat
     else:
         chat = chat_dict[str(message.from_user.id)]
+    
+    # 根据用户语言添加中文回复请求
+    lang = get_user_lang(message.from_user.id)
+    if lang == "zh" and "用中文回复" not in m and "中文回答" not in m:
+        m += "，请用中文回复"
 
     response = await chat.send_message(m)
     for part in response.candidates[0].content.parts:
