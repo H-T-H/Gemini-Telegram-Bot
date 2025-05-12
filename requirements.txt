@@ -1,5 +1,5 @@
 pyTelegramBotAPI
-google-genai
+google-genai>=0.7.0
 aiohttp
 md2tgmd
 Pillow
