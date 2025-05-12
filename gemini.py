@@ -415,34 +415,13 @@ async def gemini_image_understand(bot: TeleBot, message: Message, photo_file: by
 async def gemini_draw(bot:TeleBot, message:Message, m:str):
     chat_dict = gemini_draw_dict
     if str(message.from_user.id) not in chat_dict:
-        # 获取用户系统提示词
-        system_prompt = get_system_prompt(message.from_user.id)
-        
-        # 创建聊天会话并设置系统提示词
-        try:
-            chat = client.aio.chats.create(
-                model=model_3,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    **generation_config
-                )
-            )
-            chat_dict[str(message.from_user.id)] = chat
-        except Exception as e:
-            print(f"Failed to set system prompt for drawing: {e}")
-            # 如果设置系统提示词失败，尝试不使用系统提示词创建聊天会话
-            chat = client.aio.chats.create(
-                model=model_3,
-                config=generation_config
-            )
-            chat_dict[str(message.from_user.id)] = chat
+        chat = client.aio.chats.create(
+            model=model_3,
+            config=generation_config,
+        )
+        chat_dict[str(message.from_user.id)] = chat
     else:
         chat = chat_dict[str(message.from_user.id)]
-    
-    # 根据用户语言添加中文回复请求
-    lang = get_user_lang(message.from_user.id)
-    if lang == "zh" and "用中文回复" not in m and "中文回答" not in m:
-        m += "，请用中文回复"
 
     response = await chat.send_message(m)
     for part in response.candidates[0].content.parts:
