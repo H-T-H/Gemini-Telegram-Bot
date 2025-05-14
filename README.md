@@ -1,8 +1,9 @@
 # Gemini_Telegram_Bot
 一个使用 Gemini API 的 Telegram 机器人[English ducument](https://github.com/H-T-H/Gemini_Telegram_Bot/blob/main/README_en.md)
 # Demo
-[点这里](https://t.me/gemini_telegram_demo_bot)
-
+[点这里](https://t.me/gemini_telegram_demo_bot)  
+# 说在前面
+Google已停止gemini-2.5-pro模型的免费计划，所以免费用户无法使用该模型
 # 如何安装
 ## (1) Linux系统
 1. 安装依赖
