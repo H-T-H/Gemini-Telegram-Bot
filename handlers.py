@@ -3,7 +3,7 @@ Defines handlers for Telegram bot commands and messages,
 routing them to appropriate Gemini API interactions.
 """
 from telebot import TeleBot
-from telebot.types import Message, InlineKeyboardMarkup, InlineKeyboardButton # Added InlineKeyboard imports
+from telebot.types import Message # Removed InlineKeyboardMarkup, InlineKeyboardButton
 from core.utils import escape_html # Replaced md2tgmd with escape_html
 import traceback
 import time # Add this for last_update logic
@@ -87,14 +87,14 @@ async def gemini_stream_handler(message: Message, bot: TeleBot) -> None:
             await add_chat_message(session_id, 'model', full_response)
 
         if sent_message: # Final update after stream ends
-            action_kb = create_action_keyboard(session_id, sent_message.message_id)
+            # action_kb = create_action_keyboard(session_id, sent_message.message_id) # Removed
             async with general_limiter:
                 await bot.edit_message_text(
                     escape_html(full_response), # Use escape_html
                     chat_id=sent_message.chat.id,
                     message_id=sent_message.message_id,
-                    parse_mode="HTML", # Ensure parse_mode is HTML
-                    reply_markup=action_kb
+                    parse_mode="HTML" # Ensure parse_mode is HTML
+                    # reply_markup=action_kb # Removed
                 )
     except Exception as e:
         traceback.print_exc()
@@ -173,14 +173,14 @@ async def gemini_pro_stream_handler(message: Message, bot: TeleBot) -> None:
             await add_chat_message(session_id, 'model', full_response)
 
         if sent_message: # Final update after stream ends
-            action_kb = create_action_keyboard(session_id, sent_message.message_id)
+            # action_kb = create_action_keyboard(session_id, sent_message.message_id) # Removed
             async with general_limiter:
                 await bot.edit_message_text(
                     escape_html(full_response), # Use escape_html
                     chat_id=sent_message.chat.id,
                     message_id=sent_message.message_id,
-                    parse_mode="HTML", # Ensure parse_mode is HTML
-                    reply_markup=action_kb
+                    parse_mode="HTML" # Ensure parse_mode is HTML
+                    # reply_markup=action_kb # Removed
                 )
     except Exception as e:
         traceback.print_exc()
@@ -318,14 +318,14 @@ async def gemini_private_handler(message: Message, bot: TeleBot) -> None:
             await add_chat_message(session_id, 'model', full_response)
 
         if sent_message: # Final update
-            action_kb = create_action_keyboard(session_id, sent_message.message_id)
+            # action_kb = create_action_keyboard(session_id, sent_message.message_id) # Removed
             async with general_limiter:
                 await bot.edit_message_text(
                     escape_html(full_response), # Use escape_html
                     chat_id=sent_message.chat.id,
                     message_id=sent_message.message_id,
-                    parse_mode="HTML", # Ensure parse_mode is HTML
-                    reply_markup=action_kb
+                    parse_mode="HTML" # Ensure parse_mode is HTML
+                    # reply_markup=action_kb # Removed
                 )
     except Exception as e:
         traceback.print_exc()
@@ -455,49 +455,3 @@ async def draw_handler(message: Message, bot: TeleBot) -> None:
     finally:
         async with general_limiter:
             await bot.delete_message(chat_id=message.chat.id, message_id=drawing_msg.message_id)
-
-# --- Helper function to create action keyboard ---
-def create_action_keyboard(session_id: str, message_id: int | None = None) -> InlineKeyboardMarkup:
-    # message_id could be used if actions are specific to a message context
-    keyboard = InlineKeyboardMarkup()
-    # Using session_id in callback_data to potentially retrieve context
-    # Format: action:session_id(:optional_message_id)
-    regenerate_data = f"regenerate:{session_id}"
-    continue_data = f"continue:{session_id}"
-    
-    if message_id: # If we want to tie actions to a specific message
-            regenerate_data += f":{message_id}"
-            continue_data += f":{message_id}"
-
-    keyboard.row(
-        InlineKeyboardButton("🔄 Regenerate", callback_data=regenerate_data),
-        InlineKeyboardButton("➡️ Continue", callback_data=continue_data)
-    )
-    # Later, an "Explain" button can be added here.
-    return keyboard
-
-# --- Placeholder Callback Query Handlers ---
-async def regenerate_callback_handler(call: TeleBot.types.CallbackQuery, bot: TeleBot): # Adjusted type hint
-    """Handles the 'Regenerate' button callback."""
-    # call.data will be "regenerate:session_id" or "regenerate:session_id:message_id"
-    parts = call.data.split(':')
-    session_id = parts[1]
-    # message_id_str = parts[2] if len(parts) > 2 else None
-
-    async with general_limiter:
-        await bot.answer_callback_query(call.id, text="Regenerating response... (Not implemented yet)")
-    # Placeholder: actual regeneration logic will involve fetching history, last user prompt,
-    # and re-triggering generation. Might need to resend the "Generating answers..." message.
-    print(f"Regenerate called for session: {session_id}")
-
-async def continue_callback_handler(call: TeleBot.types.CallbackQuery, bot: TeleBot): # Adjusted type hint
-    """Handles the 'Continue' button callback."""
-    parts = call.data.split(':')
-    session_id = parts[1]
-    # message_id_str = parts[2] if len(parts) > 2 else None
-
-    async with general_limiter:
-        await bot.answer_callback_query(call.id, text="Continuing conversation... (Not implemented yet)")
-    # Placeholder: actual continuation logic will involve fetching history,
-    # potentially asking user for more input or using a "continue" prompt.
-    print(f"Continue called for session: {session_id}")

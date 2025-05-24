@@ -56,14 +56,6 @@ async def main():
         content_types=['text'],
         pass_bot=True)
 
-    # Register callback query handlers
-    bot.register_callback_query_handler(handlers.regenerate_callback_handler, 
-                                        func=lambda call: call.data.startswith("regenerate:"), 
-                                        pass_bot=True)
-    bot.register_callback_query_handler(handlers.continue_callback_handler, 
-                                        func=lambda call: call.data.startswith("continue:"), 
-                                        pass_bot=True)
-
     # Initialize the settings database
     await ensure_db_initialized()
     print("Settings database initialized.")
