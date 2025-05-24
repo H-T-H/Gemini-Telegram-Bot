@@ -6,21 +6,23 @@ from config import NEW_SAFETY_SETTINGS # Added import
 async def stream_text(kind: str, prompt: str, history: list[dict[str, any]] | None = None):
     model = get_model(kind)
     
-    contents_payload = []
+    contents_payload: list[genai_types.Content] = []
     if history:
-        contents_payload.extend(history)
-    contents_payload.append({'role': 'user', 'parts': [{'text': prompt}]})
+        for item in history:
+            parts = [genai_types.Part(text=p['text']) for p in item.get('parts', [])]
+            contents_payload.append(genai_types.Content(role=item.get('role'), parts=parts))
+    contents_payload.append(genai_types.Content(role='user', parts=[genai_types.Part(text=prompt)]))
     
-    # Define request_options, e.g., with a timeout.
-    # This should ideally be configurable or passed in if it varies.
-    request_options = genai_types.RequestOptions(timeout=90) # Default timeout
+    generation_config_obj = genai_types.GenerationConfig(
+        safety_settings=NEW_SAFETY_SETTINGS
+    )
+    request_options = genai_types.RequestOptions(timeout=90) 
     
-    # Using generate_content_async with stream=True for async streaming
     async for chunk in await model.generate_content_async(
-        contents=contents_payload, # Changed from just 'prompt'
+        contents=contents_payload,
+        generation_config=generation_config_obj,
         stream=True,
-        request_options=request_options,
-        safety_settings=NEW_SAFETY_SETTINGS # Added safety_settings
+        request_options=request_options
     ):
         # Ensure the chunk has text and it's not empty
         if hasattr(chunk, 'text') and chunk.text:
@@ -35,19 +37,24 @@ async def safe_generate_stream(prompt: str, history: list[dict[str, any]] | None
     current_kind = "pro"
     model = get_model(kind=current_kind)
     
-    contents_payload = []
+    contents_payload: list[genai_types.Content] = []
     if history:
-        contents_payload.extend(history)
-    contents_payload.append({'role': 'user', 'parts': [{'text': prompt}]})
+        for item in history:
+            parts = [genai_types.Part(text=p['text']) for p in item.get('parts', [])]
+            contents_payload.append(genai_types.Content(role=item.get('role'), parts=parts))
+    contents_payload.append(genai_types.Content(role='user', parts=[genai_types.Part(text=prompt)]))
 
+    generation_config_obj = genai_types.GenerationConfig(
+        safety_settings=NEW_SAFETY_SETTINGS
+    )
     request_options = genai_types.RequestOptions(timeout=90)
 
     try:
         async for chunk in await model.generate_content_async(
             contents=contents_payload,
+            generation_config=generation_config_obj,
             stream=True,
-            request_options=request_options,
-            safety_settings=NEW_SAFETY_SETTINGS
+            request_options=request_options
         ):
             if hasattr(chunk, 'text') and chunk.text: # Ensure text exists and is not empty
                 yield chunk.text
@@ -57,11 +64,12 @@ async def safe_generate_stream(prompt: str, history: list[dict[str, any]] | None
         current_kind = "flash"
         model = get_model(kind=current_kind)
         try: # Nested try for the fallback call
+            # generation_config_obj is the same for fallback
             async for chunk in await model.generate_content_async(
                 contents=contents_payload, # Re-use the same payload
+                generation_config=generation_config_obj,
                 stream=True,
-                request_options=request_options, # Re-use same options
-                safety_settings=NEW_SAFETY_SETTINGS 
+                request_options=request_options # Re-use same options
             ):
                 if hasattr(chunk, 'text') and chunk.text: # Ensure text exists and is not empty
                     yield chunk.text

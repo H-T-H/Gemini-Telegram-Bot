@@ -13,8 +13,6 @@ from core.limits import general_limiter, streaming_limiter # Ensure streaming_li
 from services.stream import stream_text, safe_generate_stream # Added safe_generate_stream
 from core.database import get_default_model, set_default_model, decrement_quota, get_chat_history, add_chat_message, clear_chat_history # Added clear_chat_history
 
-# gemini_chat_dict        = gemini.gemini_chat_dict # Obsolete, will be removed if not already
-# gemini_pro_chat_dict    = gemini.gemini_pro_chat_dict # Obsolete, will be removed if not already
 # default_model_dict      = gemini.default_model_dict # Removed
 gemini_draw_dict        = gemini.gemini_draw_dict # Still used by gemini.py for now
 
@@ -87,14 +85,12 @@ async def gemini_stream_handler(message: Message, bot: TeleBot) -> None:
             await add_chat_message(session_id, 'model', full_response)
 
         if sent_message: # Final update after stream ends
-            # action_kb = create_action_keyboard(session_id, sent_message.message_id) # Removed
             async with general_limiter:
                 await bot.edit_message_text(
                     escape_html(full_response), # Use escape_html
                     chat_id=sent_message.chat.id,
                     message_id=sent_message.message_id,
                     parse_mode="HTML" # Ensure parse_mode is HTML
-                    # reply_markup=action_kb # Removed
                 )
     except Exception as e:
         traceback.print_exc()
@@ -173,14 +169,12 @@ async def gemini_pro_stream_handler(message: Message, bot: TeleBot) -> None:
             await add_chat_message(session_id, 'model', full_response)
 
         if sent_message: # Final update after stream ends
-            # action_kb = create_action_keyboard(session_id, sent_message.message_id) # Removed
             async with general_limiter:
                 await bot.edit_message_text(
                     escape_html(full_response), # Use escape_html
                     chat_id=sent_message.chat.id,
                     message_id=sent_message.message_id,
                     parse_mode="HTML" # Ensure parse_mode is HTML
-                    # reply_markup=action_kb # Removed
                 )
     except Exception as e:
         traceback.print_exc()
@@ -318,14 +312,12 @@ async def gemini_private_handler(message: Message, bot: TeleBot) -> None:
             await add_chat_message(session_id, 'model', full_response)
 
         if sent_message: # Final update
-            # action_kb = create_action_keyboard(session_id, sent_message.message_id) # Removed
             async with general_limiter:
                 await bot.edit_message_text(
                     escape_html(full_response), # Use escape_html
                     chat_id=sent_message.chat.id,
                     message_id=sent_message.message_id,
                     parse_mode="HTML" # Ensure parse_mode is HTML
-                    # reply_markup=action_kb # Removed
                 )
     except Exception as e:
         traceback.print_exc()

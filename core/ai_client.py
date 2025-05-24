@@ -1,6 +1,6 @@
 import os
 from google import genai
-from google.genai import types # type: ignore
+from google.generativeai import types as genai_types # type: ignore
 
 # Model names updated based on previous plan's findings and current config.
 _MODELS = {
@@ -15,7 +15,8 @@ def get_gemini_client() -> genai.Client:
     if not api_key:
         raise ValueError("GOOGLE_GEMINI_KEY environment variable not set.")
     return genai.Client(
-        api_key=api_key
+        api_key=api_key,
+        http_options=genai_types.HttpOptions(api_version='v1beta') # Explicitly use v1beta
     )
 
 def get_model(kind: str, client: genai.Client | None = None) -> genai.GenerativeModel:
