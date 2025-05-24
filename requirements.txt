@@ -1,5 +1,7 @@
-pyTelegramBotAPI==4.27.0
-google-genai==1.16.1
+pyTelegramBotAPI~=4.27
+google-genai~=1.16
 aiohttp==3.11.18
 md2tgmd
 Pillow==11.2.1
+aiolimiter~=1.1
+aiosqlite~=0.19

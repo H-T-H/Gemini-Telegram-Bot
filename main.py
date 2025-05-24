@@ -1,4 +1,5 @@
 import argparse
+import os
 import traceback
 import asyncio
 import re
@@ -6,6 +7,7 @@ import telebot
 from telebot.async_telebot import AsyncTeleBot
 import handlers
 from config import conf, generation_config, safety_settings
+from core.database import ensure_db_initialized
 
 # Init args
 parser = argparse.ArgumentParser()
@@ -16,8 +18,15 @@ print("Arg parse done.")
 
 
 async def main():
+    # Set GOOGLE_GEMINI_KEY from command-line options to an environment variable
+    # so that core.ai_client.py can access it via os.getenv()
+    if options.GOOGLE_GEMINI_KEY:
+        os.environ['GOOGLE_GEMINI_KEY'] = options.GOOGLE_GEMINI_KEY
+    else:
+        print("Error: GOOGLE_GEMINI_KEY argument is missing.")
+        return # Or raise an error
     # Init bot
-    bot = AsyncTeleBot(options.tg_token)
+    bot = AsyncTeleBot(options.tg_token, parse_mode='HTML')
     await bot.delete_my_commands(scope=None, language_code=None)
     await bot.set_my_commands(
     commands=[
@@ -46,6 +55,18 @@ async def main():
         func=lambda message: message.chat.type == "private",
         content_types=['text'],
         pass_bot=True)
+
+    # Register callback query handlers
+    bot.register_callback_query_handler(handlers.regenerate_callback_handler, 
+                                        func=lambda call: call.data.startswith("regenerate:"), 
+                                        pass_bot=True)
+    bot.register_callback_query_handler(handlers.continue_callback_handler, 
+                                        func=lambda call: call.data.startswith("continue:"), 
+                                        pass_bot=True)
+
+    # Initialize the settings database
+    await ensure_db_initialized()
+    print("Settings database initialized.")
 
     # Start bot
     print("Starting Gemini_Telegram_Bot.")
