@@ -1,7 +1,7 @@
 import io
 import time
 import traceback
-import sys
+import os
 from PIL import Image
 from telebot.types import Message
 from md2tgmd import escape
@@ -23,7 +23,7 @@ download_pic_notify     =       conf["download_pic_notify"]
 
 search_tool = {'google_search': {}}
 
-client = genai.Client(api_key=sys.argv[2])
+client = genai.Client(api_key=os.getenv("GOOGLE_GEMINI_KEY"))
 
 async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
     sent_message = None

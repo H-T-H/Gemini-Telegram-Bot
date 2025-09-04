@@ -10,7 +10,6 @@ from config import conf, generation_config, safety_settings
 # Init args
 parser = argparse.ArgumentParser()
 parser.add_argument("tg_token", help="токен Telegram")
-parser.add_argument("GOOGLE_GEMINI_KEY", help="API‑ключ Google Gemini")
 options = parser.parse_args()
 print("Аргументы обработаны.")
 
