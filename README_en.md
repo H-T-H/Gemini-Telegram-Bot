@@ -11,14 +11,18 @@ pip install -r requirements.txt
 ```
 2. Obtain Telegram Bot API at [BotFather](https://t.me/BotFather)
 3. Get Gemini API keys from [Google AI Studio](https://makersuite.google.com/app/apikey)
-4. To run the bot, execute:
+4. Set environment variable
 ```
-python main.py ${Telegram Bot API} ${Gemini API keys}
+export GOOGLE_GEMINI_KEY="${Gemini API keys}"
+```
+5. To run the bot, execute:
+```
+python main.py ${Telegram Bot API}
 ```
 ## (2)Deploy Using Docker
 ### Use the built image(x86 only)
 ```
-docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram Bot API} -e GEMINI_API_KEYS={Gemini API Key} qwqhthqwq/gemini-telegram-bot:main
+docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram Bot API} -e GOOGLE_GEMINI_KEY={Gemini API Key} qwqhthqwq/gemini-telegram-bot:main
 ```
 ### build by yourself
 1. Get Telegram Bot API at [BotFather](https://t.me/BotFather)
@@ -37,7 +41,7 @@ docker build -t gemini_tg_bot .
 ```
 6. run
 ```
-docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram Bot API} -e GEMINI_API_KEYS={Gemini API Key} gemini_tg_bot
+docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram Bot API} -e GOOGLE_GEMINI_KEY={Gemini API Key} gemini_tg_bot
 ```
 
 ## (3)Deploy on Railway
