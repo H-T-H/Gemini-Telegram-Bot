@@ -114,7 +114,7 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
         config=generation_config
     )
     except Exception as e:
-        await bot.send_message(message.chat.id, e.str())
+        await bot.send_message(message.chat.id, str(e))
     for part in response.candidates[0].content.parts:
         if part.text is not None:
             await bot.send_message(message.chat.id, escape(part.text), parse_mode="MarkdownV2")

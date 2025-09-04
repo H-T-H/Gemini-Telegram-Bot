@@ -124,7 +124,7 @@ async def gemini_edit_handler(message: Message, bot: TeleBot) -> None:
         photo_file = await bot.download_file(file_path.file_path)
     except Exception as e:
         traceback.print_exc()
-        await bot.reply_to(message, e.str())
+        await bot.reply_to(message, str(e))
         return
     await gemini.gemini_edit(bot, message, m, photo_file)
 
