@@ -5,6 +5,13 @@ import traceback
 from config import conf
 import gemini
 
+
+def extract_command_argument(message: Message) -> str:
+    """Return the text following the command in a message or caption."""
+    text = (message.text or message.caption or "").strip()
+    parts = text.split(maxsplit=1)
+    return parts[1].strip() if len(parts) > 1 else ""
+
 error_info              =       conf["error_info"]
 before_generate_info    =       conf["before_generate_info"]
 download_pic_notify     =       conf["download_pic_notify"]
@@ -27,9 +34,8 @@ async def start(message: Message, bot: TeleBot) -> None:
         await bot.reply_to(message, error_info)
 
 async def gemini_stream_handler(message: Message, bot: TeleBot) -> None:
-    try:
-        m = message.text.strip().split(maxsplit=1)[1].strip()
-    except IndexError:
+    m = extract_command_argument(message)
+    if not m:
         await bot.reply_to(
             message,
             escape("Пожалуйста, добавьте текст после /gemini.\nНапример: `/gemini Кто такой Джон Леннон?`"),
@@ -39,9 +45,8 @@ async def gemini_stream_handler(message: Message, bot: TeleBot) -> None:
     await gemini.gemini_stream(bot, message, m, model_1)
 
 async def gemini_pro_stream_handler(message: Message, bot: TeleBot) -> None:
-    try:
-        m = message.text.strip().split(maxsplit=1)[1].strip()
-    except IndexError:
+    m = extract_command_argument(message)
+    if not m:
         await bot.reply_to(
             message,
             escape("Пожалуйста, добавьте текст после /gemini_pro.\nНапример: `/gemini_pro Кто такой Джон Леннон?`"),
@@ -92,8 +97,8 @@ async def gemini_photo_handler(message: Message, bot: TeleBot) -> None:
         s = message.caption or ""
         if not s or not (s.startswith("/gemini")):
             return
+        m = extract_command_argument(message)
         try:
-            m = s.strip().split(maxsplit=1)[1].strip() if len(s.strip().split(maxsplit=1)) > 1 else ""
             file_path = await bot.get_file(message.photo[-1].file_id)
             photo_file = await bot.download_file(file_path.file_path)
         except Exception:
@@ -102,9 +107,8 @@ async def gemini_photo_handler(message: Message, bot: TeleBot) -> None:
             return
         await gemini.gemini_edit(bot, message, m, photo_file)
     else:
-        s = message.caption or ""
+        m = extract_command_argument(message)
         try:
-            m = s.strip().split(maxsplit=1)[1].strip() if len(s.strip().split(maxsplit=1)) > 1 else ""
             file_path = await bot.get_file(message.photo[-1].file_id)
             photo_file = await bot.download_file(file_path.file_path)
         except Exception:
@@ -117,9 +121,8 @@ async def gemini_edit_handler(message: Message, bot: TeleBot) -> None:
     if not message.photo:
         await bot.reply_to(message, "Пожалуйста, отправьте фотографию")
         return
-    s = message.caption or ""
+    m = extract_command_argument(message)
     try:
-        m = s.strip().split(maxsplit=1)[1].strip() if len(s.strip().split(maxsplit=1)) > 1 else ""
         file_path = await bot.get_file(message.photo[-1].file_id)
         photo_file = await bot.download_file(file_path.file_path)
     except Exception as e:
@@ -129,16 +132,15 @@ async def gemini_edit_handler(message: Message, bot: TeleBot) -> None:
     await gemini.gemini_edit(bot, message, m, photo_file)
 
 async def draw_handler(message: Message, bot: TeleBot) -> None:
-    try:
-        m = message.text.strip().split(maxsplit=1)[1].strip()
-    except IndexError:
+    m = extract_command_argument(message)
+    if not m:
         await bot.reply_to(
             message,
             escape("Пожалуйста, добавьте, что нарисовать после /draw.\nНапример: `/draw нарисуй мне кота.`"),
             parse_mode="MarkdownV2",
         )
         return
-    
+
     # reply to the message first, then delete the "drawing..." message
     drawing_msg = await bot.reply_to(message, "Рисую...")
     try:
