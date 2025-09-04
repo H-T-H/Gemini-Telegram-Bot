@@ -18,7 +18,11 @@ gemini_draw_dict        = gemini.gemini_draw_dict
 
 async def start(message: Message, bot: TeleBot) -> None:
     try:
-        await bot.reply_to(message , escape("Welcome, you can ask me questions now. \nFor example: `Who is john lennon?`"), parse_mode="MarkdownV2")
+        await bot.reply_to(
+            message,
+            escape("Добро пожаловать, теперь вы можете задавать вопросы.\nНапример: `Кто такой Джон Леннон?`"),
+            parse_mode="MarkdownV2",
+        )
     except IndexError:
         await bot.reply_to(message, error_info)
 
@@ -26,7 +30,11 @@ async def gemini_stream_handler(message: Message, bot: TeleBot) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
-        await bot.reply_to(message, escape("Please add what you want to say after /gemini. \nFor example: `/gemini Who is john lennon?`"), parse_mode="MarkdownV2")
+        await bot.reply_to(
+            message,
+            escape("Пожалуйста, добавьте текст после /gemini.\nНапример: `/gemini Кто такой Джон Леннон?`"),
+            parse_mode="MarkdownV2",
+        )
         return
     await gemini.gemini_stream(bot, message, m, model_1)
 
@@ -34,7 +42,11 @@ async def gemini_pro_stream_handler(message: Message, bot: TeleBot) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
-        await bot.reply_to(message, escape("Please add what you want to say after /gemini_pro. \nFor example: `/gemini_pro Who is john lennon?`"), parse_mode="MarkdownV2")
+        await bot.reply_to(
+            message,
+            escape("Пожалуйста, добавьте текст после /gemini_pro.\nНапример: `/gemini_pro Кто такой Джон Леннон?`"),
+            parse_mode="MarkdownV2",
+        )
         return
     await gemini.gemini_stream(bot, message, m, model_2)
 
@@ -46,23 +58,23 @@ async def clear(message: Message, bot: TeleBot) -> None:
         del gemini_pro_chat_dict[str(message.from_user.id)]
     if (str(message.from_user.id) in gemini_draw_dict):
         del gemini_draw_dict[str(message.from_user.id)]
-    await bot.reply_to(message, "Your history has been cleared")
+    await bot.reply_to(message, "История очищена")
 
 async def switch(message: Message, bot: TeleBot) -> None:
     if message.chat.type != "private":
-        await bot.reply_to( message , "This command is only for private chat !")
+        await bot.reply_to(message, "Эта команда доступна только в личном чате!")
         return
     # Check if the chat is already in default_model_dict.
     if str(message.from_user.id) not in default_model_dict:
         default_model_dict[str(message.from_user.id)] = False
-        await bot.reply_to( message , "Now you are using "+model_2)
+        await bot.reply_to(message, "Теперь вы используете "+model_2)
         return
     if default_model_dict[str(message.from_user.id)] == True:
         default_model_dict[str(message.from_user.id)] = False
-        await bot.reply_to( message , "Now you are using "+model_2)
+        await bot.reply_to(message, "Теперь вы используете "+model_2)
     else:
         default_model_dict[str(message.from_user.id)] = True
-        await bot.reply_to( message , "Now you are using "+model_1)
+        await bot.reply_to(message, "Теперь вы используете "+model_1)
 
 async def gemini_private_handler(message: Message, bot: TeleBot) -> None:
     m = message.text.strip()
@@ -103,7 +115,7 @@ async def gemini_photo_handler(message: Message, bot: TeleBot) -> None:
 
 async def gemini_edit_handler(message: Message, bot: TeleBot) -> None:
     if not message.photo:
-        await bot.reply_to(message, "pls send a photo")
+        await bot.reply_to(message, "Пожалуйста, отправьте фотографию")
         return
     s = message.caption or ""
     try:
@@ -120,11 +132,15 @@ async def draw_handler(message: Message, bot: TeleBot) -> None:
     try:
         m = message.text.strip().split(maxsplit=1)[1].strip()
     except IndexError:
-        await bot.reply_to(message, escape("Please add what you want to draw after /draw. \nFor example: `/draw draw me a cat.`"), parse_mode="MarkdownV2")
+        await bot.reply_to(
+            message,
+            escape("Пожалуйста, добавьте, что нарисовать после /draw.\nНапример: `/draw нарисуй мне кота.`"),
+            parse_mode="MarkdownV2",
+        )
         return
     
     # reply to the message first, then delete the "drawing..." message
-    drawing_msg = await bot.reply_to(message, "Drawing...")
+    drawing_msg = await bot.reply_to(message, "Рисую...")
     try:
         await gemini.gemini_draw(bot, message, m)
     finally:

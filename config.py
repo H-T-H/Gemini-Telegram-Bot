@@ -1,12 +1,12 @@
 from google.genai import types
 conf = {
-    "error_info":           "⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !",
-    "before_generate_info": "🤖Generating🤖",
-    "download_pic_notify":  "🤖Loading picture🤖",
+    "error_info":           "⚠️⚠️⚠️\nЧто-то пошло не так!\nПопробуйте изменить запрос или свяжитесь с администратором!",
+    "before_generate_info": "🤖Генерация🤖",
+    "download_pic_notify":  "🤖Загружаю изображение🤖",
     "model_1":              "gemini-2.5-flash",
     "model_2":              "gemini-2.5-pro",
     "model_3":              "gemini-2.0-flash-preview-image-generation",#for draw
-    "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
+    "streaming_update_interval": 0.5,  # Интервал обновления потока ответа (секунды)
 }
 
 safety_settings = [

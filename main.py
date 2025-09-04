@@ -9,10 +9,10 @@ from config import conf, generation_config, safety_settings
 
 # Init args
 parser = argparse.ArgumentParser()
-parser.add_argument("tg_token", help="telegram token")
-parser.add_argument("GOOGLE_GEMINI_KEY", help="Google Gemini API key")
+parser.add_argument("tg_token", help="токен Telegram")
+parser.add_argument("GOOGLE_GEMINI_KEY", help="API‑ключ Google Gemini")
 options = parser.parse_args()
-print("Arg parse done.")
+print("Аргументы обработаны.")
 
 
 async def main():
@@ -21,16 +21,16 @@ async def main():
     await bot.delete_my_commands(scope=None, language_code=None)
     await bot.set_my_commands(
     commands=[
-        telebot.types.BotCommand("start", "Start"),
-        telebot.types.BotCommand("gemini", f"using {conf['model_1']}"),
-        telebot.types.BotCommand("gemini_pro", f"using {conf['model_2']}"),
-        telebot.types.BotCommand("draw", "draw picture"),
-        telebot.types.BotCommand("edit", "edit photo"),
-        telebot.types.BotCommand("clear", "Clear all history"),
-        telebot.types.BotCommand("switch","switch default model")
+        telebot.types.BotCommand("start", "Запуск"),
+        telebot.types.BotCommand("gemini", f"использует {conf['model_1']}"),
+        telebot.types.BotCommand("gemini_pro", f"использует {conf['model_2']}"),
+        telebot.types.BotCommand("draw", "нарисовать изображение"),
+        telebot.types.BotCommand("edit", "редактировать фото"),
+        telebot.types.BotCommand("clear", "очистить историю"),
+        telebot.types.BotCommand("switch","сменить модель по умолчанию")
     ],
 )
-    print("Bot init done.")
+    print("Бот инициализирован.")
 
     # Init commands
     bot.register_message_handler(handlers.start,                         commands=['start'],         pass_bot=True)
@@ -48,7 +48,7 @@ async def main():
         pass_bot=True)
 
     # Start bot
-    print("Starting Gemini_Telegram_Bot.")
+    print("Запуск Gemini_Telegram_Bot.")
     await bot.polling(none_stop=True)
 
 if __name__ == '__main__':
