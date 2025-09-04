@@ -28,7 +28,7 @@ client = genai.Client(api_key=sys.argv[2])
 async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
     sent_message = None
     try:
-        sent_message = await bot.reply_to(message, "🤖 Generating answers...")
+        sent_message = await bot.reply_to(message, "🤖 Генерирую ответ...")
 
         chat = None
         if model_type == model_1:
@@ -71,7 +71,7 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                                 )
                         else:
                             if "message is not modified" not in str(e).lower():
-                                print(f"Error updating message: {e}")
+                                print(f"Ошибка обновления сообщения: {e}")
                     last_update = current_time
 
         try:
@@ -97,12 +97,12 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
         traceback.print_exc()
         if sent_message:
             await bot.edit_message_text(
-                f"{error_info}\nError details: {str(e)}",
+                f"{error_info}\nПодробности ошибки: {str(e)}",
                 chat_id=sent_message.chat.id,
                 message_id=sent_message.message_id
             )
         else:
-            await bot.reply_to(message, f"{error_info}\nError details: {str(e)}")
+            await bot.reply_to(message, f"{error_info}\nПодробности ошибки: {str(e)}")
 
 async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes):
 
