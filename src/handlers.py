@@ -3,7 +3,7 @@ from telebot.types import Message
 from md2tgmd import escape
 import traceback
 from config import conf
-import gemini
+import gemini as gemini
 
 error_info              =       conf["error_info"]
 before_generate_info    =       conf["before_generate_info"]
