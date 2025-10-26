@@ -1,7 +1,7 @@
 # Gemini_Telegram_Bot
-一个使用 Gemini API 的 Telegram 机器人[English ducument](https://github.com/H-T-H/Gemini_Telegram_Bot/blob/main/README_en.md)
+使用Telegram与Gemini API交互[[English ducument]](https://github.com/H-T-H/Gemini_Telegram_Bot/blob/main/README_en.md)
 # Demo
-[点这里](https://t.me/gemini_telegram_demo_bot)  
+[点这里](https://t.me/gemini_telegram_demo_bot)
 
 # 如何安装
 ## (1) Linux系统
@@ -40,12 +40,7 @@ docker build -t gemini_tg_bot .
 docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} -e GEMINI_API_KEYS={Gemini API 密钥} gemini_tg_bot
 ```
 
-## (3)使用 Railway 部署
-点击下方按钮一键部署
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/HIsbMv?referralCode=4LyW6R)
-
-## (4)使用 Zeabur 部署
+## (3)使用 Zeabur 部署
 点击下方按钮一键部署
 
 [![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/V2870T)
@@ -53,11 +48,10 @@ docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram 机器人 API} 
 
 # 使用方法
 1. 私聊中直接发送你的问题即可
-2. 群组中使用 **/gemini** 或者 **/gemini_pro +你的问题**，支持多轮对话
+2. 群组中使用 **/gemini +你的问题**，支持图片
 3. 删除对话的历史记录请使用 **/clear**
-4. 切换私聊中默认调用的模型请使用 **/switch**
-5. 绘图使用 **/draw+你要的图片**，支持多轮对话
-6. 编辑图片使用 **/edit + 你上传的图片+你要修改的地方**
+4. 切换调用的模型请使用 **/switch**
+
 
 # 参考信息
 1. [https://github.com/yihong0618/tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)

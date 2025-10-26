@@ -1,5 +1,5 @@
 # Gemini_Telegram_Bot
-A Telegram Bot using Gemini API
+Interact with the Gemini API via Telegram.
 # Demo
 [Click here](https://t.me/gemini_telegram_demo_bot)
 
@@ -40,12 +40,7 @@ docker build -t gemini_tg_bot .
 docker run -d --restart=always -e TELEGRAM_BOT_API_KEY={Telegram Bot API} -e GEMINI_API_KEYS={Gemini API Key} gemini_tg_bot
 ```
 
-## (3)Deploy on Railway
-Click on the button below for a one-click deployment.
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/HIsbMv?referralCode=4LyW6R)
-
-## (4)Deploy on Zeabur
+## (3)Deploy on Zeabur
 Click on the button below for a one-click deployment.
 
 [![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/V2870T)
@@ -53,11 +48,9 @@ Click on the button below for a one-click deployment.
 
 # How to Use
 1. Send your questions directly in a private chat.
-2.  In a group chat, use **/gemini** or /gemini\_pro + your question. Multi-turn conversations are supported.
+2. In a group chat, use **/gemini** + your question. Photo is supported.
 3. You can use the **/clear** command to delete the current conversation history.
 4. You can use the **/switch** command to switch the model.
-5. To generate images, use **/draw** + the image you want. Multi-turn conversations are supported.
-6. To edit images, use **/edit** + the image you upload + the edits you want to make.
 
 
 # Reference
