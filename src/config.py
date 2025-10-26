@@ -1,11 +1,14 @@
 from google.genai import types
+from google import genai
+from google.genai.chats import AsyncChat
+import sys
+
 conf = {
     "error_info":           "⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !",
     "before_generate_info": "🤖Generating🤖",
     "download_pic_notify":  "🤖Loading picture🤖",
     "model_1":              "gemini-2.5-flash",
     "model_2":              "gemini-2.5-pro",
-    "model_3":              "gemini-2.0-flash-preview-image-generation",#for draw
     "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
 }
 
@@ -32,7 +35,6 @@ safety_settings = [
     )
 ]
 
-generation_config = types.GenerateContentConfig(
-    response_modalities=['Text', 'Image'],
-    safety_settings=safety_settings,
-)
+chat_dict: dict[int, AsyncChat] = {}
+client = genai.Client(api_key=sys.argv[2])
+search_tool = {'google_search': {}}
