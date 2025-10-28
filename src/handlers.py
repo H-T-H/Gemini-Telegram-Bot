@@ -5,8 +5,8 @@ import gemini as gemini
 from telebot import TeleBot
 from telebot.types import Message
 from md2tgmd import escape
-from config import conf, chat_dict
-from utils import get_model, update_chat
+from config import conf
+from utils import get_model, update_chat, chat_dict
 
 error_info              =       conf["error_info"]
 before_generate_info    =       conf["before_generate_info"]

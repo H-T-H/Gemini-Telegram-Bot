@@ -1,5 +1,12 @@
-from config import conf, chat_dict, client, search_tool
+from config import conf
 from google.genai.chats import AsyncChat
+from google import genai
+from google.genai.chats import AsyncChat
+import sys
+
+chat_dict: dict[int, AsyncChat] = {}
+client = genai.Client(api_key=sys.argv[2])
+search_tool = {'google_search': {}}
 
 async def init_user(user_id: int) -> AsyncChat:
     """if user not exist in chat_dict, create one

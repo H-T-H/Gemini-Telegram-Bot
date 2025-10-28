@@ -1,7 +1,5 @@
 from google.genai import types
-from google import genai
-from google.genai.chats import AsyncChat
-import sys
+
 
 conf = {
     "error_info":           "⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !",
@@ -34,7 +32,3 @@ safety_settings = [
         threshold="BLOCK_NONE",
     )
 ]
-
-chat_dict: dict[int, AsyncChat] = {}
-client = genai.Client(api_key=sys.argv[2])
-search_tool = {'google_search': {}}
