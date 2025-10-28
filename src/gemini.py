@@ -15,10 +15,12 @@ before_generate_info    =       conf["before_generate_info"]
 download_pic_notify     =       conf["download_pic_notify"]
 
 async def gemini_stream(bot:TeleBot, message:Message, contents:str|list) -> None:
-    sent_message = None
+    sent_message = await bot.reply_to(message, "🤖 Generating answers...")
+    chat, lock = await init_user(message.from_user.id)
+    
+    await lock.acquire()
+
     try:
-        sent_message = await bot.reply_to(message, "🤖 Generating answers...")
-        chat = await init_user(message.from_user.id)
         response = await chat.send_message_stream(contents)
 
         full_response = ""
@@ -68,6 +70,7 @@ async def gemini_stream(bot:TeleBot, message:Message, contents:str|list) -> None
                     )
             except Exception:
                 traceback.print_exc()
+        
 
 
     except Exception as e:
@@ -80,3 +83,5 @@ async def gemini_stream(bot:TeleBot, message:Message, contents:str|list) -> None
             )
         else:
             await bot.reply_to(message, f"{error_info}\nError details: {str(e)}")
+            
+    lock.release()

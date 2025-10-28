@@ -6,7 +6,7 @@ from telebot import TeleBot
 from telebot.types import Message
 from md2tgmd import escape
 from config import conf
-from utils import get_model, update_chat, chat_dict
+from utils import switch_model, clear_history
 
 error_info              =       conf["error_info"]
 before_generate_info    =       conf["before_generate_info"]
@@ -29,19 +29,12 @@ async def gemini_handler(message: Message, bot: TeleBot) -> None:
     await gemini.gemini_stream(bot, message, contents)
 
 async def clear(message: Message, bot: TeleBot) -> None:
-    # Check if the chat is already in chat_dict.
-    if (message.from_user.id in chat_dict):
-        del chat_dict[message.from_user.id]
+    await clear_history(message.from_user.id)
     await bot.reply_to(message, "Your history has been cleared")
 
 async def switch(message: Message, bot: TeleBot) -> None:
-    model = await get_model(message.from_user.id)
-    if model == model_1:
-        await update_chat(message.from_user.id, model_2)
-        await bot.reply_to(message , "Now you are using "+model_2)
-    else:
-        await update_chat(message.from_user.id, model_1)
-        await bot.reply_to(message , "Now you are using "+model_1)
+    model = await switch_model(message.from_user.id)
+    await bot.reply_to(message , "Now you are using "+ model)
 
 async def gemini_private_handler(message: Message, bot: TeleBot) -> None:
     contents = message.text.strip()

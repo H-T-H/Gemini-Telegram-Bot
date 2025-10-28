@@ -1,6 +1,5 @@
 from google.genai import types
 
-
 conf = {
     "error_info":           "⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !",
     "before_generate_info": "🤖Generating🤖",
