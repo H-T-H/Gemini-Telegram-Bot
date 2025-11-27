@@ -1,12 +1,12 @@
 from google.genai import types
 
 conf = {
-    "error_info":           "⚠️⚠️⚠️\nSomething went wrong !\nplease try to change your prompt or contact the admin !",
-    "before_generate_info": "🤖Generating🤖",
-    "download_pic_notify":  "🤖Loading picture🤖",
-    "model_1":              "gemini-2.5-flash",
-    "model_2":              "gemini-2.5-pro",
-    "streaming_update_interval": 0.5,  # Streaming answer update interval (seconds)
+    "error_info": "⚠⚠⚠\nAlgo deu errado!\nPor favor, tente alterar seu prompt ou contate o administrador!",
+    "before_generate_info": "⏳Gerando⏳",
+    "download_pic_notify": "🖼Carregando imagem🖼",
+    "model_1": "gemini-2.5-flash",
+    "model_2": "gemini-2.5-flash",
+    "streaming_update_interval": 0.5,  # Intervalo de atualização de streaming (segundos)
 }
 
 safety_settings = [
@@ -22,12 +22,4 @@ safety_settings = [
         category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
         threshold="BLOCK_NONE",
     ),
-    types.SafetySetting(
-        category="HARM_CATEGORY_DANGEROUS_CONTENT",
-        threshold="BLOCK_NONE",
-    ),
-    types.SafetySetting(
-        category="HARM_CATEGORY_CIVIC_INTEGRITY",
-        threshold="BLOCK_NONE",
-    )
 ]
