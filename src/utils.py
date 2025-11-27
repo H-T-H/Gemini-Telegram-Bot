@@ -5,68 +5,25 @@ import sys
 from asyncio import Lock
 from typing import Tuple
 
-chat_dict: dict[int, list[AsyncChat, Lock]] = {}
-client = genai.Client(api_key=sys.argv[2])
-search_tool = {'google_search': {}}
+dict_chat: dict[int, list[AsyncChat, Lock]] = {}
+cliente = genai.Client(api_key=sys.argv[2])
+ferramenta_busca = {'google_search': {}}
 
-async def init_user(user_id: int) -> Tuple[AsyncChat, Lock]:
-    """if user not exist in chat_dict, create one
-    
+
+async def iniciar_usuario(id_usuario: int) -> Tuple[AsyncChat, Lock]:
+    """Se o usuário não existir no dict_chat, cria um
+
     Args:
-        user_id: (int): user's id
+        id_usuario: (int): id do usuário
 
     Returns:
-        AsyncChat: user's chat session
-        Lock:      user's chat lock
+        AsyncChat: sessão de chat do usuário
+        Lock:      lock do chat do usuário
     """
-    if user_id not in chat_dict:#if not find user's chat
-        chat = client.aio.chats.create(model=conf["model_1"], config={'tools': [search_tool]})
+    if id_usuario not in dict_chat:#Se não encontrar o chat do usuário
+        chat = cliente.aio.chats.create(model=conf['modelo_1'], config={'tools': [ferramenta_busca]})
         lock = Lock()
-        chat_dict[user_id] = [chat, lock]
+        dict_chat[id_usuario] = [chat, lock]  
+        return chat, lock
     else:
-        chat, lock = chat_dict[user_id]
-    return chat, lock
-
-async def switch_model(user_id: int) -> str:
-    """Update user's chat session, keep the history
-    
-    Args:
-        user_id (int): user's id
-
-    Returns:
-        str: chat's current model
-    """
-    old_chat, lock = await init_user(user_id)
-
-    await lock.acquire()
-
-    if(old_chat._model == conf["model_1"]):
-        new_model = conf["model_2"]
-    else:
-        new_model = conf["model_1"]
-    history = old_chat.get_history()
-    new_chat = client.aio.chats.create(model=new_model, history = history, config={'tools': [search_tool]})
-    chat_dict[user_id] = [new_chat, lock]
-
-    lock.release()
-
-    return new_model
-
-async def clear_history(user_id: int) -> None:
-    """clear user's history
-    
-    Args:
-        user_id (int): user's id
-
-    Returns:
-        None
-    """
-    old_chat, lock = await init_user(user_id)
-
-    await lock.acquire()
-
-    model = old_chat._model
-    new_chat = client.aio.chats.create(model=model, config={'tools': [search_tool]})
-    chat_dict[user_id] = [new_chat, lock]
-    
-    lock.release()
+        return dict_chat[id_usuario][0], dict_chat[id_usuario][1]
