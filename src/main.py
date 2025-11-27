@@ -4,39 +4,35 @@ import telebot
 from telebot.async_telebot import AsyncTeleBot
 import handlers
 
-# Init args
+# Inicializar argumentos
 parser = argparse.ArgumentParser()
-parser.add_argument("tg_token", help="telegram token")
-parser.add_argument("GOOGLE_GEMINI_KEY", help="Google Gemini API key")
-options = parser.parse_args()
-print("Arg parse done.")
+parser.add_argument("token_tg", help="token do telegram")
+parser.add_argument("CHAVE_GOOGLE_GEMINI", help="chave da API do Google Gemini")
+opcoes = parser.parse_args()
+print("Análise de argumentos concluída.")
 
 
-async def main():
-    # Init bot
-    bot = AsyncTeleBot(options.tg_token)
+async def principal():
+    # Inicializar bot
+    bot = AsyncTeleBot(opcoes.token_tg)
     await bot.delete_my_commands(scope=None, language_code=None)
     await bot.set_my_commands(
-    commands=[
-        telebot.types.BotCommand("start", "Start"),
-        telebot.types.BotCommand("gemini", "Chat with gemini"),
-        telebot.types.BotCommand("clear", "Clear all history"),
-        telebot.types.BotCommand("switch","switch model")
-    ],
-)
-    print("Bot init done.")
+        commands=[
+            telebot.types.BotCommand("iniciar", "Iniciar"),
+            telebot.types.BotCommand("gemini", "Conversar com gemini"),
+            telebot.types.BotCommand("limpar", "Limpar todo o histórico"),
+            telebot.types.BotCommand("reiniciar", "Reiniciar modelo"),
+        ]
+    )
+    print("Bot inicializado.")
 
-    # Init commands
-    bot.register_message_handler(handlers.start,                         commands=['start'],         pass_bot=True)
-    bot.register_message_handler(handlers.gemini_handler,                commands=['gemini'],        pass_bot=True)
-    bot.register_message_handler(handlers.clear,                         commands=['clear'],         pass_bot=True)
-    bot.register_message_handler(handlers.switch,                        commands=['switch'],        pass_bot=True)
-    bot.register_message_handler(handlers.gemini_photo_handler,          content_types=["photo"],    pass_bot=True)
-    bot.register_message_handler(handlers.gemini_private_handler,        content_types=['text'],     pass_bot=True, func=lambda message: message.chat.type == "private")
+    # Registrar manipuladores
+    handlers.registrar_manipuladores(bot, opcoes.CHAVE_GOOGLE_GEMINI)
+    print("Manipuladores registrados.")
 
-    # Start bot
-    print("Starting Gemini_Telegram_Bot.")
-    await bot.polling(none_stop=True)
+    # Executar bot
+    await bot.infinity_polling()
 
-if __name__ == '__main__':
-    asyncio.run(main())
+
+if __name__ == "__main__":
+    asyncio.run(principal())
