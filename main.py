@@ -40,6 +40,7 @@ async def main():
     bot.register_message_handler(handlers.clear,                         commands=['clear'],         pass_bot=True)
     bot.register_message_handler(handlers.switch,                        commands=['switch'],        pass_bot=True)
     bot.register_message_handler(handlers.gemini_photo_handler,          content_types=["photo"],    pass_bot=True)
+    bot.register_message_handler(handlers.gemini_voice_handler,          content_types=["voice"],    pass_bot=True)
     bot.register_message_handler(
         handlers.gemini_private_handler,
         func=lambda message: message.chat.type == "private",

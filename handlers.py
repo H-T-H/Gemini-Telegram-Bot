@@ -3,6 +3,7 @@ from telebot.types import Message
 from md2tgmd import escape
 import traceback
 from config import conf
+from database import db
 import gemini
 
 
@@ -63,34 +64,88 @@ async def clear(message: Message, bot: TeleBot) -> None:
         del gemini_pro_chat_dict[str(message.from_user.id)]
     if (str(message.from_user.id) in gemini_draw_dict):
         del gemini_draw_dict[str(message.from_user.id)]
+
+    # Also clear from DB
+    db.clear_history(message.from_user.id)
+
     await bot.reply_to(message, "История очищена")
 
 async def switch(message: Message, bot: TeleBot) -> None:
     if message.chat.type != "private":
         await bot.reply_to(message, "Эта команда доступна только в личном чате!")
         return
-    # Check if the chat is already in default_model_dict.
-    if str(message.from_user.id) not in default_model_dict:
-        default_model_dict[str(message.from_user.id)] = False
-        await bot.reply_to(message, "Теперь вы используете "+model_2)
-        return
-    if default_model_dict[str(message.from_user.id)] == True:
-        default_model_dict[str(message.from_user.id)] = False
-        await bot.reply_to(message, "Теперь вы используете "+model_2)
+
+    user_id = str(message.from_user.id)
+    current_model = db.get_user_model(user_id)
+
+    if current_model == model_2:
+        new_model = model_1
+        await bot.reply_to(message, "Теперь вы используете " + model_1)
     else:
-        default_model_dict[str(message.from_user.id)] = True
-        await bot.reply_to(message, "Теперь вы используете "+model_1)
+        # Default is usually model_1 (Flash), so switch to model_2 (Pro)
+        # But wait, original logic:
+        # if not in dict -> set False (Pro) -> reply "Uses Pro"
+        # if True (Flash) -> set False (Pro)
+        # else -> set True (Flash)
+
+        # Original: default_model_dict[id] = True means Flash.
+        # If not in dict, set False (Pro).
+
+        if current_model == model_1:
+             new_model = model_2
+             await bot.reply_to(message, "Теперь вы используете " + model_2)
+        else:
+             # If None (not set) or already model_2
+             if current_model is None:
+                 # Original logic: if not in dict, set False (Pro).
+                 new_model = model_2
+                 await bot.reply_to(message, "Теперь вы используете " + model_2)
+             else:
+                 new_model = model_1
+                 await bot.reply_to(message, "Теперь вы используете " + model_1)
+
+    db.set_user_model(user_id, new_model)
+    # Also update in-memory for consistency if needed, but handlers read from DB now?
+    # No, `gemini_private_handler` below reads from `default_model_dict`.
+    # I should update `gemini_private_handler` to read from DB too.
 
 async def gemini_private_handler(message: Message, bot: TeleBot) -> None:
     m = message.text.strip()
-    if str(message.from_user.id) not in default_model_dict:
-        default_model_dict[str(message.from_user.id)] = True
-        await gemini.gemini_stream(bot,message,m,model_1)
-    else:
-        if default_model_dict[str(message.from_user.id)]:
-            await gemini.gemini_stream(bot,message,m,model_1)
-        else:
-            await gemini.gemini_stream(bot,message,m,model_2)
+    user_id = str(message.from_user.id)
+
+    current_model = db.get_user_model(user_id)
+
+    # If not set, default to model_1 (Flash) as per typical expectation,
+    # OR follow original logic: "If not in default_model_dict -> set True -> use model_1"
+    # Wait, `switch` original: "if not in dict: dict=False (Pro)".
+    # `gemini_private_handler` original: "if not in dict: dict=True (Flash)".
+    # So by default private chat uses Flash. Switch toggles it.
+
+    if current_model is None:
+        current_model = model_1
+        db.set_user_model(user_id, model_1)
+
+    await gemini.gemini_stream(bot, message, m, current_model)
+
+async def gemini_voice_handler(message: Message, bot: TeleBot) -> None:
+    if message.chat.type != "private":
+        # Maybe allow in groups if replied to bot? For now private only or explicit command?
+        # Standard behavior: handle if private.
+        pass
+
+    try:
+        file_info = await bot.get_file(message.voice.file_id)
+        file_data = await bot.download_file(file_info.file_path)
+
+        # User model preference
+        user_id = str(message.from_user.id)
+        current_model = db.get_user_model(user_id) or model_1
+
+        await gemini.gemini_voice(bot, message, file_data, current_model)
+
+    except Exception as e:
+        traceback.print_exc()
+        await bot.reply_to(message, error_info)
 
 async def gemini_photo_handler(message: Message, bot: TeleBot) -> None:
     if message.chat.type != "private":

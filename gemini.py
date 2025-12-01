@@ -8,6 +8,8 @@ from md2tgmd import escape
 from telebot import TeleBot
 from config import conf, generation_config
 from google import genai
+from google.genai import types
+from database import db
 
 gemini_draw_dict = {}
 gemini_chat_dict = {}
@@ -36,11 +38,24 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
         else:
             chat_dict = gemini_pro_chat_dict
 
-        if str(message.from_user.id) not in chat_dict:
-            chat = client.aio.chats.create(model=model_type, config={'tools': [search_tool]})
-            chat_dict[str(message.from_user.id)] = chat
+        user_id = str(message.from_user.id)
+        if user_id not in chat_dict:
+            # Load history from DB
+            history_rows = db.get_history(user_id)
+            history = []
+            for role, content in history_rows:
+                # Assuming simple text history for now
+                if content:
+                    history.append(types.Content(role=role, parts=[types.Part.from_text(content)]))
+
+            chat = client.aio.chats.create(
+                model=model_type,
+                config={'tools': [search_tool]},
+                history=history
+            )
+            chat_dict[user_id] = chat
         else:
-            chat = chat_dict[str(message.from_user.id)]
+            chat = chat_dict[user_id]
 
         response = await chat.send_message_stream(m)
 
@@ -81,6 +96,11 @@ async def gemini_stream(bot:TeleBot, message:Message, m:str, model_type:str):
                 message_id=sent_message.message_id,
                 parse_mode="MarkdownV2"
             )
+            # Save interaction to DB
+            user_id = str(message.from_user.id)
+            db.add_message(user_id, "user", m)
+            db.add_message(user_id, "model", full_response)
+
         except Exception as e:
             try:
                 if "parse markdown" in str(e).lower():
@@ -121,6 +141,98 @@ async def gemini_edit(bot: TeleBot, message: Message, m: str, photo_file: bytes)
         elif part.inline_data is not None:
             photo = part.inline_data.data
             await bot.send_photo(message.chat.id, photo)
+
+async def gemini_voice(bot: TeleBot, message: Message, voice_data: bytes, model_type: str):
+    sent_message = None
+    try:
+        sent_message = await bot.reply_to(message, "🤖 Слушаю и думаю...")
+
+        user_id = str(message.from_user.id)
+
+        # Load history
+        history_rows = db.get_history(user_id)
+        history = []
+        for role, content in history_rows:
+            if content:
+                history.append(types.Content(role=role, parts=[types.Part.from_text(content)]))
+
+        # We need a chat session or a direct generate_content call?
+        # Chat session is better for context.
+
+        if model_type == model_1:
+            chat_dict = gemini_chat_dict
+        else:
+            chat_dict = gemini_pro_chat_dict
+
+        if user_id not in chat_dict:
+            chat = client.aio.chats.create(
+                model=model_type,
+                config={'tools': [search_tool]},
+                history=history
+            )
+            chat_dict[user_id] = chat
+        else:
+            chat = chat_dict[user_id]
+
+        # Send voice data. Telegram voice is OGG (Opus). Gemini supports it.
+        # We need to wrap it in a Part.
+
+        response = await chat.send_message_stream(
+            [types.Part.from_bytes(data=voice_data, mime_type="audio/ogg")]
+        )
+
+        full_response = ""
+        last_update = time.time()
+        update_interval = conf["streaming_update_interval"]
+
+        async for chunk in response:
+            if hasattr(chunk, 'text') and chunk.text:
+                full_response += chunk.text
+                current_time = time.time()
+
+                if current_time - last_update >= update_interval:
+                    try:
+                        await bot.edit_message_text(
+                            escape(full_response),
+                            chat_id=sent_message.chat.id,
+                            message_id=sent_message.message_id,
+                            parse_mode="MarkdownV2"
+                            )
+                    except Exception as e:
+                        if "parse markdown" in str(e).lower():
+                            await bot.edit_message_text(
+                                full_response,
+                                chat_id=sent_message.chat.id,
+                                message_id=sent_message.message_id
+                                )
+                    last_update = current_time
+
+        try:
+            await bot.edit_message_text(
+                escape(full_response),
+                chat_id=sent_message.chat.id,
+                message_id=sent_message.message_id,
+                parse_mode="MarkdownV2"
+            )
+            # Save interaction to DB
+            # For voice, we might want to save "[Audio Message]" or transcribe it if Gemini returned it?
+            # Gemini response usually contains just the text answer.
+            # We will save a placeholder for the user message so context isn't lost,
+            # though without the actual audio in history, context might be weak if we reload.
+            # Ideally we'd keep the file or get a transcription.
+            # For now:
+            db.add_message(user_id, "user", "[Voice Message]")
+            db.add_message(user_id, "model", full_response)
+
+        except Exception as e:
+             traceback.print_exc()
+
+    except Exception as e:
+        traceback.print_exc()
+        if sent_message:
+            await bot.edit_message_text(f"{error_info}\n{str(e)}", chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+        else:
+            await bot.reply_to(message, str(e))
 
 async def gemini_draw(bot:TeleBot, message:Message, m:str):
     chat_dict = gemini_draw_dict
