@@ -7,7 +7,6 @@ from typing import Tuple
 
 chat_dict: dict[int, list[AsyncChat, Lock]] = {}
 client = genai.Client(api_key=sys.argv[2])
-search_tool = {'google_search': {}}
 
 async def init_user(user_id: int) -> Tuple[AsyncChat, Lock]:
     """if user not exist in chat_dict, create one
@@ -20,7 +19,7 @@ async def init_user(user_id: int) -> Tuple[AsyncChat, Lock]:
         Lock:      user's chat lock
     """
     if user_id not in chat_dict:#if not find user's chat
-        chat = client.aio.chats.create(model=conf["model_1"], config={'tools': [search_tool]})
+        chat = client.aio.chats.create(model=conf["model_1"])
         lock = Lock()
         chat_dict[user_id] = [chat, lock]
     else:
@@ -45,7 +44,7 @@ async def switch_model(user_id: int) -> str:
     else:
         new_model = conf["model_1"]
     history = old_chat.get_history()
-    new_chat = client.aio.chats.create(model=new_model, history = history, config={'tools': [search_tool]})
+    new_chat = client.aio.chats.create(model=new_model, history = history)
     chat_dict[user_id] = [new_chat, lock]
 
     lock.release()
@@ -66,7 +65,7 @@ async def clear_history(user_id: int) -> None:
     await lock.acquire()
 
     model = old_chat._model
-    new_chat = client.aio.chats.create(model=model, config={'tools': [search_tool]})
+    new_chat = client.aio.chats.create(model=model)
     chat_dict[user_id] = [new_chat, lock]
     
     lock.release()
